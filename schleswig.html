@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Schleswig zu Fuß — Stadtrundgang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --brick:#a83f2e;
+    --brick-dark:#7a2c20;
+    --lake:#28454d;
+    --lake-light:#3f6a72;
+    --cream:#f2e8d6;
+    --paper:#fbf6ec;
+    --ink:#271f18;
+    --gold:#c69a3c;
+    --line: rgba(39,31,24,0.14);
+    --radius: 2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--lake);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.04), transparent 45%);
+    color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  .stage{
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:24px 18px;
+  }
+  .card{
+    background:var(--paper);
+    width:100%;
+    max-width:640px;
+    height:100%;
+    max-height:900px;
+    border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.06);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    position:relative;
+    min-height:0;
+  }
+  /* --- Route line (signature element) --- */
+  .route{
+    padding:16px 24px 16px;
+    background:var(--cream);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .route-topbar{
+    display:flex;
+    justify-content:flex-end;
+    margin-bottom:10px;
+  }
+  .overview-btn{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:none;
+    border:1px solid var(--brick-dark);
+    color:var(--brick-dark);
+    padding:5px 10px;
+    cursor:pointer;
+    transition:background .2s, color .2s;
+  }
+  .overview-btn:hover{ background:var(--brick-dark); color:var(--paper); }
+  .route svg{ display:block; width:100%; height:34px; overflow:visible; }
+  .route-track{ stroke:rgba(39,31,24,0.18); stroke-width:2; fill:none; }
+  .route-fill{ stroke:var(--brick); stroke-width:2; fill:none; transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1); }
+  .route-dot{ cursor:pointer; }
+  .route-dot circle.base{ fill:var(--paper); stroke:rgba(39,31,24,0.35); stroke-width:1.5; transition:all .3s ease; }
+  .route-dot.done circle.base{ fill:var(--brick); stroke:var(--brick); }
+  .route-dot.current circle.base{ fill:var(--gold); stroke:var(--gold); r:7; }
+  .route-dot.current circle.pulse{ opacity:1; }
+  .route-dot circle.pulse{ fill:none; stroke:var(--gold); stroke-width:1.5; opacity:0; transform-origin:center; animation:pulse 2.2s ease-out infinite; }
+  @keyframes pulse{ 0%{ r:7; opacity:.7;} 100%{ r:16; opacity:0;} }
+
+  .head{
+    padding:20px 28px 0;
+    flex-shrink:0;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  h1{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(28px,6vw,40px);
+    line-height:1.05;
+    margin:8px 0 2px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:500;
+    color:var(--lake);
+    font-size:16px;
+    margin:0 0 14px;
+  }
+  .body-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 28px 24px;
+  }
+  .body-scroll::-webkit-scrollbar{ width:6px; }
+  .body-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .facts{ margin:6px 0 0; padding:0; list-style:none; }
+  .facts li{
+    position:relative;
+    padding-left:20px;
+    margin-bottom:11px;
+    font-size:15.5px;
+    line-height:1.55;
+  }
+  .facts li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:6px; height:6px;
+    background:var(--brick);
+  }
+  .anekdote{
+    margin-top:22px;
+    background:linear-gradient(180deg, var(--cream), rgba(242,232,214,0.5));
+    border-left:3px solid var(--gold);
+    padding:16px 18px 18px;
+  }
+  .anekdote-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:block;
+    margin-bottom:6px;
+  }
+  .anekdote h3{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:18px;
+    margin:0 0 8px;
+    color:var(--brick-dark);
+  }
+  .anekdote p{
+    margin:0;
+    font-size:15px;
+    line-height:1.62;
+    color:var(--ink);
+  }
+  .mapbox{
+    margin-top:20px;
+    border:1px solid var(--line);
+    background:var(--cream);
+  }
+  .mapbox iframe{
+    width:100%;
+    height:180px;
+    display:block;
+    border:0;
+    filter:sepia(8%) saturate(85%);
+  }
+  .maplinks{
+    display:flex;
+    gap:1px;
+    background:var(--line);
+  }
+  .maplinks a{
+    flex:1;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    color:var(--ink);
+    background:var(--cream);
+    padding:11px 6px;
+    transition:background .2s,color .2s;
+  }
+  .maplinks a:hover{ background:var(--brick); color:var(--paper); }
+  .coords{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--lake-light);
+    padding:8px 10px 0;
+  }
+  .compass{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+    margin:16px 0 4px;
+  }
+  .compass div{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake);
+  }
+  .compass b{ color:var(--brick-dark); }
+
+  /* --- Nav --- */
+  .nav{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+  }
+  .nav button{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.06em;
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    padding:10px 16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:background .2s,color .2s;
+  }
+  .nav button:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  .nav button:disabled{ opacity:0.25; cursor:default; }
+  .nav .counter{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake-light);
+  }
+
+  .slide{
+    display:none;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    animation:fade .35s ease;
+  }
+  .slide.active{ display:flex; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  @media (max-width:480px){
+    .stage{ padding:0; }
+    .card{ max-height:none; border-radius:0; }
+    .head{ padding:16px 20px 0; }
+    .body-scroll{ padding:6px 20px 20px; }
+  }
+
+  /* --- Overview overlay --- */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(20,16,12,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .overlay-card{
+    background:var(--paper);
+    width:100%;
+    max-width:680px;
+    height:100%;
+    max-height:820px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .overlay-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 20px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-head h2{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0;
+  }
+  .overlay-head button{
+    background:none; border:1px solid var(--ink); color:var(--ink);
+    width:32px; height:32px; cursor:pointer; font-size:16px;
+    font-family:"IBM Plex Mono", monospace;
+  }
+  .overlay-head button:hover{ background:var(--ink); color:var(--paper); }
+  #overviewMap{ flex:1; }
+  .overlay-footer{
+    padding:12px 20px 16px;
+    border-top:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-footer a{
+    display:block;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    background:var(--brick);
+    color:var(--paper);
+    padding:12px;
+    transition:background .2s;
+  }
+  .overlay-footer a:hover{ background:var(--brick-dark); }
+  .leaflet-popup-content{ font-family:"Source Serif 4", serif; font-size:13.5px; }
+  .leaflet-popup-content b{ font-family:"Fraunces", serif; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+
+    <div class="route">
+      <div class="route-topbar">
+        <button class="overview-btn" onclick="openOverview()">Alle Stationen ↗</button>
+      </div>
+      <svg viewBox="0 0 600 34" id="routeSvg">
+        <path class="route-track" d="M20,17 L580,17"/>
+        <path class="route-fill" id="routeFill" d="M20,17 L580,17"/>
+        <g id="routeDots"></g>
+      </svg>
+    </div>
+
+    <div id="slides" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+
+    <div class="nav">
+      <button id="prevBtn" onclick="go(-1)">‹ Zurück</button>
+      <span class="counter" id="counter"></span>
+      <button id="nextBtn" onclick="go(1)">Weiter ›</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="overlay" id="overviewOverlay">
+  <div class="overlay-card">
+    <div class="overlay-head">
+      <h2>Alle Stationen</h2>
+      <button onclick="closeOverview()">✕</button>
+    </div>
+    <div id="overviewMap"></div>
+    <div class="overlay-footer">
+      <a id="fullRouteLink" href="#" target="_blank" rel="noopener">Gesamte Route in Google Maps öffnen ↗</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const stations = [
+{
+  eyebrow: "Einführung",
+  meta: "vor dem Start",
+  title: "Schleswig",
+  subtitle: "Die Stadt an der Schlei",
+  lat: 54.5135552, lng: 9.569181,
+  facts: [
+    "Schleswig zählt zu den ältesten Städten Nordeuropas – seine Wurzeln liegen im Wikingerhandelsplatz Haithabu, der um 800 n. Chr. am gegenüberliegenden Schlei-Ufer entstand.",
+    "804 wird der Ort erstmals in fränkischen Quellen als \"Sliesthorp\" erwähnt – einer der frühesten Ortsnamen Nordeuropas überhaupt.",
+    "948 wurde Schleswig Bischofssitz; nach der Zerstörung Haithabus 1066 verlagerte sich das Leben endgültig auf die Nordseite der Schlei, wo die heutige Altstadt entstand.",
+    "Ab 1544 residierten hier die Herzöge von Holstein-Gottorf auf Schloss Gottorf – eine Dynastie, aus der später auch schwedische Könige und die russischen Zaren (Romanow-Linie Holstein-Gottorf) hervorgingen.",
+    "Die \"Schleswig-Holstein-Frage\" des 19. Jahrhunderts, samt Kriegen von 1848–51 und 1864, hat hier ihren Ursprung; bis heute lebt in der Stadt eine dänische Minderheit.",
+    "Seit 2018 sind Haithabu und das Danewerk UNESCO-Welterbe – Schleswigs Geschichte reicht damit direkt bis in die Wikingerzeit zurück."
+  ],
+  compass: [["804","Sliesthorp"], ["948","Bistum"], ["1066","Ende Haithabus"], ["1544","Herzogssitz Gottorf"], ["1864","Deutsch-Dänischer Krieg"], ["2018","UNESCO-Welterbe"]],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 01",
+  meta: "Start · ca. 15 Min",
+  title: "Dom St. Petri",
+  subtitle: "Heimat des Bordesholmer Altars",
+  lat: 54.5135552, lng: 9.569181,
+  facts: [
+    "Gotische Bischofskirche mit 112 Meter hohem Turm – dem höchsten Kirchturm Schleswig-Holsteins.",
+    "Beherbergt den Bordesholmer Altar von Hans Brüggemann (1521): ein 12,5 Meter hohes Eichenholz-Schnitzwerk mit 392 Figuren, eines der bedeutendsten Werke der spätgotischen Bildschnitzerei Nordeuropas.",
+    "Grabstätte des dänischen Königs Friedrich I. befindet sich im Dom.",
+    "Der Kreuzgang (Kaland-Kapelle) zeigt mittelalterliche Wandmalereien und ist einer der wenigen erhaltenen Klostergänge Schleswig-Holsteins."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Der Preis der Meisterschaft",
+  anekdoteText:"Der Sage nach soll König Christian II. von Dänemark den Bildschnitzer Hans Brüggemann nach Vollendung des Altars geblendet haben lassen – aus Furcht, der Künstler könnte irgendwo sonst noch ein ebenso großartiges Werk erschaffen. Historisch belegt ist diese Geschichte nicht, doch sie erzählt viel darüber, welchen Ruf der Altar schon kurz nach seiner Fertigstellung genoss: ein Meisterwerk, das als unwiederholbar galt. Sechs Jahre lang, von 1514 bis 1521, hat Brüggemann im Kloster Bordesholm daran geschnitzt, bevor es 1666 nach Schleswig gebracht wurde."
+},
+{
+  eyebrow: "Station 02",
+  meta: "ca. 10 Min",
+  title: "Rathausmarkt & Altstadt",
+  subtitle: "Bürgerliches Zentrum seit dem Mittelalter",
+  lat: 54.5140727, lng: 9.5714039,
+  facts: [
+    "Historischer Marktplatz mit klassizistischem Rathaus, seit dem Mittelalter Mittelpunkt des bürgerlichen Lebens.",
+    "Die engen Gassen der Altstadt folgen bis heute dem mittelalterlichen Straßenraster, auch wenn viele Fassaden nach Bränden jüngeren Datums sind.",
+    "Schleswig war über Jahrhunderte Hauptstadt des Herzogtums Schleswig – erst 1867 übernahm Kiel die Rolle als Verwaltungssitz der preußischen Provinz."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Der ruhelose Herzog",
+  anekdoteText:"Herzog Abel von Schleswig, so erzählt man sich, ließ 1250 seinen eigenen Bruder, König Erik Plovpenning, ermorden und watete anschließend selbst wenig später in einem Sumpf bei Missunde – nur wenige Kilometer schleiaufwärts – in den Tod. Weil kein geweihter Boden einen Brudermörder aufnehmen sollte, warf man seine Leiche kurzerhand ins Moor. Der Legende nach fand seine Seele deshalb nie Ruhe: Bis heute soll Herzog Abel als Anführer der \"Wilden Jagd\" in stürmischen Nächten über die Schlei reiten – eine der ältesten Spukgeschichten der Region."
+},
+{
+  eyebrow: "Station 03",
+  meta: "ca. 15 Min",
+  title: "Holm",
+  subtitle: "Fischersiedlung mit dem Friedhof im Zentrum",
+  lat: 54.5122482, lng: 9.5742285,
+  facts: [
+    "Holm bedeutet \"Insel\" – die Siedlung lag ursprünglich tatsächlich auf einer kleinen Insel in der Schlei und ist eine der ältesten erhaltenen Fischersiedlungen Norddeutschlands.",
+    "Ungewöhnlicher Grundriss: Die bunten kleinen Häuser gruppieren sich kreisförmig um Kirche und Friedhof – die Toten liegen buchstäblich im Zentrum der Gemeinschaft.",
+    "Die \"Holmer Beliebung\", ein jahrhundertealtes Regelwerk der Fischerbruderschaft, regelte einst das Zusammenleben und die Nutzung der Fanggründe und existiert bis heute als Tradition.",
+    "Bis heute sind Grabstellen auf dem Friedhof traditionell den Nachkommen der alten Holmer Fischerfamilien vorbehalten."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Ein Dorf, das um seine Toten gebaut ist",
+  anekdoteText:"Wer zum ersten Mal durch Holm schlendert, wundert sich: Warum liegt der Friedhof nicht am Rand, sondern mittendrin? Für die alten Fischerfamilien war das kein Zufall, sondern Ausdruck ihres Selbstverständnisses – die Verstorbenen blieben Teil der Gemeinschaft, buchstäblich im Zentrum des Alltags. Die Holmer Beliebung schrieb sogar fest, wer hier begraben werden durfte: nur, wer zu einer der alten Fischerfamilien gehörte. Ein Platz auf diesem Friedhof war also nie nur eine letzte Ruhestätte, sondern auch ein Stück Zugehörigkeit, das man sich nicht erkaufen konnte."
+},
+{
+  eyebrow: "Station 04",
+  meta: "ca. 10 Min",
+  title: "Schleiufer & Hafen",
+  subtitle: "Blick über die Förde nach Haithabu",
+  lat: 54.5115206, lng: 9.569832,
+  facts: [
+    "Die Schlei ist eine 42 km lange Ostsee-Förde – Schleswigs Fenster zur Ostsee und über Jahrhunderte wichtigste Handelsroute der Stadt.",
+    "Vom Ufer aus ist der charakteristische halbkreisförmige Wall von Haithabu auf der gegenüberliegenden Seite zu erahnen – dem einstigen Wikingerhandelsplatz, aus dem Schleswig hervorging.",
+    "Der Stadthafen mit Yachthafen und Fischrestaurants steht in direkter Tradition zum mittelalterlichen Warenumschlag, der Schleswig einst reich machte.",
+    "Regional bekannt ist der \"Schleswiger Rauchaal\" – geräucherter Aal aus der Schlei, eine jahrhundertealte Spezialität der Fischerfamilien von Holm."
+  ],
+  anekdoteLabel:null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 05",
+  meta: "ca. 20 Min · ca. 25 Gehmin. entfernt",
+  title: "Schloss Gottorf",
+  subtitle: "Residenz einer europäischen Dynastie",
+  lat: 54.5116826, lng: 9.5410849,
+  facts: [
+    "Von 1544 bis 1713 Residenz der Herzöge von Holstein-Gottorf – einst einer der bedeutendsten Fürstenhöfe Nordeuropas.",
+    "Aus der Gottorfer Linie gingen später die schwedischen Könige und über die Ehe Katharinas der Großen auch die russischen Zaren hervor.",
+    "Heute Sitz der Schleswig-Holsteinischen Landesmuseen mit dem Nydam-Boot – einem rund 1.700 Jahre alten eichenen Plankenboot, einem der ältesten erhaltenen Boote Europas – sowie den berühmten Moorleichen.",
+    "Von hier bis zum Schleiufer sind es etwa 2 km bzw. 25 Gehminuten – für einen entspannten Rundgang lohnt sich ggf. eine kurze Pause oder ein Fahrrad."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Ein Globus als Geschenk für den Zaren",
+  anekdoteText:"Herzog Friedrich III. ließ zwischen 1654 und 1664 einen gewaltigen begehbaren Globus bauen – innen mit gemaltem Sternenhimmel, außen mit einer Weltkarte, ein technisches Wunderwerk seiner Zeit, in dem Besucher auf einer Bank Platz nehmen konnten. Als Gottorf im Großen Nordischen Krieg seine Unabhängigkeit verlor, wurde der Globus 1713 kurzerhand als diplomatisches Geschenk an Zar Peter den Großen verschenkt – und über Land und Meer bis nach St. Petersburg transportiert, wo eine (nach einem Brand rekonstruierte) Version bis heute in der Kunstkammer steht. Im Schlossgarten von Gottorf lässt sich seit einigen Jahren ein originalgetreuer Nachbau besichtigen."
+},
+{
+  eyebrow: "Station 06",
+  meta: "Abschluss · ca. 15 Min",
+  title: "Neuwerkgarten",
+  subtitle: "Barockgarten mit Globushaus",
+  lat: 54.516725, lng: 9.5415695,
+  facts: [
+    "Barocker Gartenteil vor Schloss Gottorf, im 17. Jahrhundert angelegt, im 19. Jahrhundert zum englischen Landschaftspark umgestaltet und im 20. Jahrhundert teilweise wieder barock rekonstruiert.",
+    "Im Globushaus steht der begehbare Nachbau des historischen Gottorfer Globus – heute wieder öffentlich zugänglich.",
+    "Kaskaden, Alleen und Skulpturen machen den Garten zu einem ruhigen Abschluss des Rundgangs mit Blick zurück auf das Schloss."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Ein Garten, der viermal die Mode wechselte",
+  anekdoteText:"Kaum ein Ort in Schleswig hat sein Gesicht so oft verändert wie dieser Garten: barock und streng geometrisch angelegt, im 19. Jahrhundert dem englischen Landschaftsideal geopfert und mit geschwungenen Wegen überformt, im 20. Jahrhundert teilweise wieder in seine barocke Form zurückversetzt. Jede Generation hat hier ihren eigenen Zeitgeschmack hinterlassen – und mit dem originalgetreuen Nachbau des Gottorfer Globus im Globushaus kehrt inzwischen sogar ein Stück der ursprünglichen höfischen Wunderkammer an ihren angestammten Platz zurück."
+}
+];
+
+let current = 0;
+const slidesEl = document.getElementById('slides');
+const routeDots = document.getElementById('routeDots');
+const routeFill = document.getElementById('routeFill');
+const totalLen = 560;
+
+stations.forEach((s, i) => {
+  const el = document.createElement('div');
+  el.className = 'slide' + (i===0 ? ' active' : '');
+  el.id = 'slide-' + i;
+  el.innerHTML = `
+    <div class="head">
+      <div class="eyebrow"><span>${s.eyebrow}</span><span>${s.meta}</span></div>
+      <h1>${s.title}</h1>
+      <div class="subtitle">${s.subtitle}</div>
+    </div>
+    <div class="body-scroll">
+      <ul class="facts">${s.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${s.compass ? `<div class="compass">${s.compass.map(c=>`<div><b>${c[0]}</b> ${c[1]}</div>`).join('')}</div>` : ''}
+      ${s.lat ? `
+      <div class="mapbox">
+        <div class="coords">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+        <iframe loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${s.lng-0.004}%2C${s.lat-0.0025}%2C${s.lng+0.004}%2C${s.lat+0.0025}&layer=mapnik&marker=${s.lat}%2C${s.lng}"></iframe>
+        <div class="maplinks">
+          <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener">Google Maps ↗</a>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=walking" target="_blank" rel="noopener">Navigation starten ↗</a>
+        </div>
+      </div>` : ''}
+      ${s.anekdoteText ? `
+      <div class="anekdote">
+        <span class="anekdote-label">${s.anekdoteLabel}</span>
+        <h3>${s.anekdoteTitle}</h3>
+        <p>${s.anekdoteText}</p>
+      </div>` : ''}
+    </div>
+  `;
+  slidesEl.appendChild(el);
+
+  const x = 20 + (i * (totalLen / (stations.length - 1)));
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','route-dot');
+  g.setAttribute('data-i', i);
+  g.innerHTML = `<circle class="pulse" cx="${x}" cy="17" r="7"></circle><circle class="base" cx="${x}" cy="17" r="5"></circle>`;
+  g.addEventListener('click', () => { current = i; render(); });
+  routeDots.appendChild(g);
+});
+
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=> el.classList.toggle('active', i===current));
+  document.querySelectorAll('.route-dot').forEach((el,i)=>{
+    el.classList.toggle('done', i < current);
+    el.classList.toggle('current', i === current);
+  });
+  const x = 20 + (current * (totalLen / (stations.length - 1)));
+  routeFill.setAttribute('d', `M20,17 L${x},17`);
+  document.getElementById('counter').textContent = (current+1) + ' / ' + stations.length;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === stations.length - 1;
+  document.querySelector('.body-scroll:not([style*="display: none"])');
+  const active = document.querySelector('.slide.active .body-scroll');
+  if(active) active.scrollTop = 0;
+}
+function go(dir){
+  const next = current + dir;
+  if(next < 0 || next > stations.length - 1) return;
+  current = next;
+  render();
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight') go(1);
+  if(e.key === 'ArrowLeft') go(-1);
+});
+let touchX = null;
+document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  touchX = null;
+});
+render();
+
+/* --- Overview map with all stations --- */
+let overviewMap = null;
+const routeStations = stations.filter(s => s.eyebrow.startsWith('Station'));
+
+function openOverview(){
+  document.getElementById('overviewOverlay').classList.add('open');
+  if(!overviewMap){
+    overviewMap = L.map('overviewMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap-Mitwirkende',
+      maxZoom: 19
+    }).addTo(overviewMap);
+
+    const latlngs = routeStations.map(s => [s.lat, s.lng]);
+    const brickIcon = (num) => L.divIcon({
+      className: '',
+      html: `<div style="background:#a83f2e;color:#fbf6ec;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;border:2px solid #fbf6ec;box-shadow:0 2px 6px rgba(0,0,0,0.35);">${num}</div>`,
+      iconSize: [26,26],
+      iconAnchor: [13,13]
+    });
+
+    routeStations.forEach((s, i) => {
+      L.marker([s.lat, s.lng], { icon: brickIcon(i+1) })
+        .addTo(overviewMap)
+        .bindPopup(`<b>${i+1}. ${s.title}</b><br>${s.subtitle}`);
+    });
+
+    L.polyline(latlngs, { color:'#a83f2e', weight:3, dashArray:'6 6' }).addTo(overviewMap);
+    overviewMap.fitBounds(L.latLngBounds(latlngs), { padding:[36,36] });
+
+    const origin = routeStations[0];
+    const dest = routeStations[routeStations.length - 1];
+    const waypoints = routeStations.slice(1, -1).map(s => `${s.lat},${s.lng}`).join('|');
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&waypoints=${waypoints}&travelmode=walking`;
+    document.getElementById('fullRouteLink').href = url;
+  } else {
+    setTimeout(() => overviewMap.invalidateSize(), 50);
+  }
+}
+function closeOverview(){
+  document.getElementById('overviewOverlay').classList.remove('open');
+}
+document.getElementById('overviewOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'overviewOverlay') closeOverview();
+});
+</script>
+</body>
+</html>
