@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hobru — Stadtrundgänge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brick:#a83f2e;
+    --brick-dark:#7a2c20;
+    --lake:#28454d;
+    --lake-light:#3f6a72;
+    --cream:#f2e8d6;
+    --paper:#fbf6ec;
+    --ink:#271f18;
+    --gold:#c69a3c;
+    --line: rgba(39,31,24,0.14);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--lake);
+    background-image:
+      radial-gradient(circle at 12% 6%, rgba(255,255,255,0.06), transparent 42%),
+      radial-gradient(circle at 88% 96%, rgba(255,255,255,0.05), transparent 46%);
+    color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:64px 24px 80px;
+  }
+
+  header{
+    color:var(--paper);
+    margin-bottom:52px;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    display:inline-block;
+    width:22px; height:1px;
+    background:var(--gold);
+  }
+  h1{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(38px,7vw,58px);
+    line-height:1.03;
+    margin:14px 0 14px;
+  }
+  header p{
+    font-size:17px;
+    line-height:1.6;
+    max-width:52ch;
+    color:rgba(251,246,236,0.82);
+    margin:0;
+  }
+
+  .route-divider{
+    margin:44px 0 40px;
+  }
+  .route-divider svg{ width:100%; height:20px; display:block; }
+  .route-divider path{ stroke:rgba(251,246,236,0.28); stroke-width:1.5; fill:none; }
+  .route-divider circle{ fill:var(--gold); }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:18px;
+  }
+
+  .card{
+    background:var(--paper);
+    text-decoration:none;
+    color:var(--ink);
+    display:flex;
+    align-items:stretch;
+    box-shadow:0 20px 45px -18px rgba(0,0,0,0.45);
+    transition:transform .25s ease, box-shadow .25s ease;
+    overflow:hidden;
+  }
+  .card:hover{ transform:translateY(-3px); box-shadow:0 26px 55px -16px rgba(0,0,0,0.55); }
+
+  .card-tag{
+    flex:0 0 76px;
+    background:var(--brick);
+    color:var(--paper);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:15px;
+    text-align:center;
+    padding:10px;
+    writing-mode:vertical-rl;
+    letter-spacing:.03em;
+  }
+  .card.is-external .card-tag{ background:var(--lake); }
+  .card.is-future .card-tag{ background:transparent; border-right:1px dashed var(--line); color:var(--lake-light); }
+
+  .card-body{
+    flex:1;
+    padding:20px 22px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    min-width:0;
+  }
+  .card-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+  }
+  .card-body h2{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:23px;
+    margin:0;
+  }
+  .card-meta{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .card.is-external .card-meta{ color:var(--lake); }
+  .card-body p{
+    margin:2px 0 0;
+    font-size:14.5px;
+    line-height:1.55;
+    color:rgba(39,31,24,0.78);
+  }
+  .card-go{
+    margin-top:10px;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    letter-spacing:.05em;
+    color:var(--brick-dark);
+  }
+  .card.is-external .card-go{ color:var(--lake); }
+  .card:hover .card-go{ text-decoration:underline; }
+
+  .card.is-future{
+    box-shadow:none;
+    background:transparent;
+    border:1px dashed rgba(251,246,236,0.3);
+    cursor:default;
+  }
+  .card.is-future:hover{ transform:none; }
+  .card.is-future .card-body h2,
+  .card.is-future .card-body p,
+  .card.is-future .card-go{ color:rgba(251,246,236,0.55); }
+  .card.is-future .card-meta{ color:rgba(251,246,236,0.4); }
+
+  footer{
+    margin-top:56px;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:rgba(251,246,236,0.5);
+    letter-spacing:.03em;
+  }
+  footer a{ color:rgba(251,246,236,0.75); }
+
+  @media (max-width:520px){
+    .wrap{ padding:44px 18px 60px; }
+    .card{ flex-direction:column; }
+    .card-tag{ writing-mode:horizontal-tb; flex:0 0 auto; padding:8px; font-size:12px; }
+    .card.is-future .card-tag{ border-right:none; border-bottom:1px dashed var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">hobru · Stadtrundgänge</div>
+    <h1>Zu Fuß durch<br>historische Städte</h1>
+    <p>Selbstgeführte Rundgänge mit Stationen, Fakten, Anekdoten und Karten zum direkten Aufrufen unterwegs — Station für Station, immer griffbereit auf dem Handy.</p>
+  </header>
+
+  <div class="route-divider">
+    <svg viewBox="0 0 600 20"><path d="M0,10 L600,10"/><circle cx="10" cy="10" r="3"/><circle cx="300" cy="10" r="3"/><circle cx="590" cy="10" r="3"/></svg>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    Weitere Städte folgen laufend — dieses Verzeichnis wächst.
+  </footer>
+
+</div>
+
+<script>
+/*
+  Neue Stadt hinzufügen: einfach ein weiteres Objekt in dieses Array einfügen.
+  type: "internal" (eigene Seite im Repo), "external" (fremder Link)
+*/
+const destinations = [
+  {
+    type: "internal",
+    title: "Schwerin",
+    subtitle: "Residenzstadt der sieben Seen",
+    teaser: "Vom Pfaffenteich über Dom und Alten Garten bis zum Märchenschloss.",
+    meta: "7 Stationen · ca. 90 Min",
+    href: "schwerin.html"
+  },
+  {
+    type: "internal",
+    title: "Schleswig",
+    subtitle: "Die Stadt an der Schlei",
+    teaser: "Von Haithabus Erben über den Bordesholmer Altar bis zu Schloss Gottorf.",
+    meta: "7 Stationen · ca. 2 Std.",
+    href: "schleswig.html"
+  },
+  {
+    type: "external",
+    title: "Speyer",
+    subtitle: "Discover Speyer — von Holger Bruchelt",
+    teaser: "2.000 Jahre Stadtgeschichte, Kaiserdom und Technikmuseum, geführt von einem offiziellen Stadtführer.",
+    meta: "Externer Guide",
+    href: "https://www.discoverspeyer.de/"
+  },
+  {
+    type: "future"
+  }
+];
+
+const grid = document.getElementById('grid');
+
+destinations.forEach(d => {
+  const el = document.createElement(d.type === 'future' ? 'div' : 'a');
+  if(d.type !== 'future'){
+    el.href = d.href;
+    if(d.type === 'external'){ el.target = '_blank'; el.rel = 'noopener'; }
+  }
+  el.className = 'card' + (d.type === 'external' ? ' is-external' : '') + (d.type === 'future' ? ' is-future' : '');
+
+  if(d.type === 'future'){
+    el.innerHTML = `
+      <div class="card-tag">＋</div>
+      <div class="card-body">
+        <div class="card-top"><h2>Nächste Stadt</h2><span class="card-meta">demnächst</span></div>
+        <p>Weitere Rundgänge sind in Vorbereitung.</p>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="card-tag">${d.type === 'external' ? '↗' : d.title.slice(0,2).toUpperCase()}</div>
+      <div class="card-body">
+        <div class="card-top"><h2>${d.title}</h2><span class="card-meta">${d.meta}</span></div>
+        <p><em>${d.subtitle}</em></p>
+        <p>${d.teaser}</p>
+        <span class="card-go">${d.type === 'external' ? 'Zum Guide ↗' : 'Rundgang starten →'}</span>
+      </div>`;
+  }
+  grid.appendChild(el);
+});
+</script>
+</body>
+</html>
