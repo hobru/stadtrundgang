@@ -65,9 +65,22 @@
   }
   .route-topbar{
     display:flex;
-    justify-content:flex-end;
+    justify-content:space-between;
+    align-items:center;
     margin-bottom:10px;
   }
+  .home-link{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    text-decoration:none;
+    color:var(--lake);
+    border:1px solid var(--lake);
+    padding:5px 10px;
+    transition:background .2s, color .2s;
+  }
+  .home-link:hover{ background:var(--lake); color:var(--paper); }
   .overview-btn{
     font-family:"IBM Plex Mono", monospace;
     font-size:10.5px;
@@ -333,6 +346,20 @@
   .overlay-footer a:hover{ background:var(--brick-dark); }
   .leaflet-popup-content{ font-family:"Source Serif 4", serif; font-size:13.5px; }
   .leaflet-popup-content b{ font-family:"Fraunces", serif; }
+  .photo-block{ margin-top:18px; }
+  .photo-block figure{ margin:0 0 14px; }
+  .photo-block img{
+    width:100%;
+    display:block;
+    border:1px solid var(--line);
+  }
+  .photo-caption{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    letter-spacing:.02em;
+    color:var(--lake-light);
+    padding:6px 2px 0;
+  }
 </style>
 </head>
 <body>
@@ -342,6 +369,7 @@
 
     <div class="route">
       <div class="route-topbar">
+        <a class="home-link" href="index.html">← Alle Rundgänge</a>
         <button class="overview-btn" onclick="openOverview()">Alle Stationen ↗</button>
       </div>
       <svg viewBox="0 0 600 34" id="routeSvg">
@@ -401,6 +429,9 @@ const stations = [
   title: "Dom St. Petri",
   subtitle: "Heimat des Bordesholmer Altars",
   lat: 54.5135552, lng: 9.569181,
+  photos: [
+    {src: "images/schleswig-01-dom.jpg", caption: "Eigenes Foto, aufgenommen am 6. Juli 2026"}
+  ],
   facts: [
     "Gotische Bischofskirche mit 112 Meter hohem Turm – dem höchsten Kirchturm Schleswig-Holsteins.",
     "Beherbergt den Bordesholmer Altar von Hans Brüggemann (1521): ein 12,5 Meter hohes Eichenholz-Schnitzwerk mit 392 Figuren, eines der bedeutendsten Werke der spätgotischen Bildschnitzerei Nordeuropas.",
@@ -474,6 +505,9 @@ const stations = [
   title: "Neuwerkgarten",
   subtitle: "Barockgarten mit Globushaus",
   lat: 54.516725, lng: 9.5415695,
+  photos: [
+    {src: "images/schleswig-02-neuwerkgarten.jpg", caption: "Eigenes Foto, aufgenommen am 6. Juli 2026"}
+  ],
   facts: [
     "Barocker Gartenteil vor Schloss Gottorf, im 17. Jahrhundert angelegt, im 19. Jahrhundert zum englischen Landschaftspark umgestaltet und im 20. Jahrhundert teilweise wieder barock rekonstruiert.",
     "Im Globushaus steht der begehbare Nachbau des historischen Gottorfer Globus – heute wieder öffentlich zugänglich.",
@@ -502,6 +536,13 @@ stations.forEach((s, i) => {
     </div>
     <div class="body-scroll">
       <ul class="facts">${s.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${s.photos ? `
+      <div class="photo-block">${s.photos.map(p=>`
+        <figure>
+          <img src="${p.src}" alt="${p.caption||''}" loading="lazy">
+          <div class="photo-caption">${p.caption||''}</div>
+        </figure>`).join('')}
+      </div>` : ''}
       ${s.compass ? `<div class="compass">${s.compass.map(c=>`<div><b>${c[0]}</b> ${c[1]}</div>`).join('')}</div>` : ''}
       ${s.lat ? `
       <div class="mapbox">
