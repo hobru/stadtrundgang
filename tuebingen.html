@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Tübingen zu Fuß — Stadtrundgang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --brick:#a83f2e;
+    --brick-dark:#7a2c20;
+    --lake:#28454d;
+    --lake-light:#3f6a72;
+    --cream:#f2e8d6;
+    --paper:#fbf6ec;
+    --ink:#271f18;
+    --gold:#c69a3c;
+    --line: rgba(39,31,24,0.14);
+    --radius: 2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--lake);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.04), transparent 45%);
+    color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  .stage{
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:24px 18px;
+  }
+  .card{
+    background:var(--paper);
+    width:100%;
+    max-width:640px;
+    height:100%;
+    max-height:900px;
+    border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.06);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    position:relative;
+    min-height:0;
+  }
+  /* --- Route line (signature element) --- */
+  .route{
+    padding:16px 24px 16px;
+    background:var(--cream);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .route-topbar{
+    display:flex;
+    justify-content:flex-end;
+    margin-bottom:10px;
+  }
+  .overview-btn{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:none;
+    border:1px solid var(--brick-dark);
+    color:var(--brick-dark);
+    padding:5px 10px;
+    cursor:pointer;
+    transition:background .2s, color .2s;
+  }
+  .overview-btn:hover{ background:var(--brick-dark); color:var(--paper); }
+  .route svg{ display:block; width:100%; height:34px; overflow:visible; }
+  .route-track{ stroke:rgba(39,31,24,0.18); stroke-width:2; fill:none; }
+  .route-fill{ stroke:var(--brick); stroke-width:2; fill:none; transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1); }
+  .route-dot{ cursor:pointer; }
+  .route-dot circle.base{ fill:var(--paper); stroke:rgba(39,31,24,0.35); stroke-width:1.5; transition:all .3s ease; }
+  .route-dot.done circle.base{ fill:var(--brick); stroke:var(--brick); }
+  .route-dot.current circle.base{ fill:var(--gold); stroke:var(--gold); r:7; }
+  .route-dot.current circle.pulse{ opacity:1; }
+  .route-dot circle.pulse{ fill:none; stroke:var(--gold); stroke-width:1.5; opacity:0; transform-origin:center; animation:pulse 2.2s ease-out infinite; }
+  @keyframes pulse{ 0%{ r:7; opacity:.7;} 100%{ r:16; opacity:0;} }
+
+  .head{
+    padding:20px 28px 0;
+    flex-shrink:0;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  h1{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(28px,6vw,40px);
+    line-height:1.05;
+    margin:8px 0 2px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:500;
+    color:var(--lake);
+    font-size:16px;
+    margin:0 0 14px;
+  }
+  .body-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 28px 24px;
+  }
+  .body-scroll::-webkit-scrollbar{ width:6px; }
+  .body-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .facts{ margin:6px 0 0; padding:0; list-style:none; }
+  .facts li{
+    position:relative;
+    padding-left:20px;
+    margin-bottom:11px;
+    font-size:15.5px;
+    line-height:1.55;
+  }
+  .facts li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:6px; height:6px;
+    background:var(--brick);
+  }
+  .anekdote{
+    margin-top:22px;
+    background:linear-gradient(180deg, var(--cream), rgba(242,232,214,0.5));
+    border-left:3px solid var(--gold);
+    padding:16px 18px 18px;
+  }
+  .anekdote-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:block;
+    margin-bottom:6px;
+  }
+  .anekdote h3{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:18px;
+    margin:0 0 8px;
+    color:var(--brick-dark);
+  }
+  .anekdote p{
+    margin:0;
+    font-size:15px;
+    line-height:1.62;
+    color:var(--ink);
+  }
+  .mapbox{
+    margin-top:20px;
+    border:1px solid var(--line);
+    background:var(--cream);
+  }
+  .mapbox iframe{
+    width:100%;
+    height:180px;
+    display:block;
+    border:0;
+    filter:sepia(8%) saturate(85%);
+  }
+  .maplinks{
+    display:flex;
+    gap:1px;
+    background:var(--line);
+  }
+  .maplinks a{
+    flex:1;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    color:var(--ink);
+    background:var(--cream);
+    padding:11px 6px;
+    transition:background .2s,color .2s;
+  }
+  .maplinks a:hover{ background:var(--brick); color:var(--paper); }
+  .coords{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--lake-light);
+    padding:8px 10px 0;
+  }
+  .compass{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+    margin:16px 0 4px;
+  }
+  .compass div{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake);
+  }
+  .compass b{ color:var(--brick-dark); }
+
+  /* --- Nav --- */
+  .nav{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+  }
+  .nav button{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.06em;
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    padding:10px 16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:background .2s,color .2s;
+  }
+  .nav button:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  .nav button:disabled{ opacity:0.25; cursor:default; }
+  .nav .counter{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake-light);
+  }
+
+  .slide{
+    display:none;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    animation:fade .35s ease;
+  }
+  .slide.active{ display:flex; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  @media (max-width:480px){
+    .stage{ padding:0; }
+    .card{ max-height:none; border-radius:0; }
+    .head{ padding:16px 20px 0; }
+    .body-scroll{ padding:6px 20px 20px; }
+  }
+
+  /* --- Overview overlay --- */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(20,16,12,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .overlay-card{
+    background:var(--paper);
+    width:100%;
+    max-width:680px;
+    height:100%;
+    max-height:820px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .overlay-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 20px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-head h2{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0;
+  }
+  .overlay-head button{
+    background:none; border:1px solid var(--ink); color:var(--ink);
+    width:32px; height:32px; cursor:pointer; font-size:16px;
+    font-family:"IBM Plex Mono", monospace;
+  }
+  .overlay-head button:hover{ background:var(--ink); color:var(--paper); }
+  #overviewMap{ flex:1; }
+  .overlay-footer{
+    padding:12px 20px 16px;
+    border-top:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-footer a{
+    display:block;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    background:var(--brick);
+    color:var(--paper);
+    padding:12px;
+    transition:background .2s;
+  }
+  .overlay-footer a:hover{ background:var(--brick-dark); }
+  .leaflet-popup-content{ font-family:"Source Serif 4", serif; font-size:13.5px; }
+  .leaflet-popup-content b{ font-family:"Fraunces", serif; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+
+    <div class="route">
+      <div class="route-topbar">
+        <button class="overview-btn" onclick="openOverview()">Alle Stationen ↗</button>
+      </div>
+      <svg viewBox="0 0 600 34" id="routeSvg">
+        <path class="route-track" d="M20,17 L580,17"/>
+        <path class="route-fill" id="routeFill" d="M20,17 L580,17"/>
+        <g id="routeDots"></g>
+      </svg>
+    </div>
+
+    <div id="slides" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+
+    <div class="nav">
+      <button id="prevBtn" onclick="go(-1)">‹ Zurück</button>
+      <span class="counter" id="counter"></span>
+      <button id="nextBtn" onclick="go(1)">Weiter ›</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="overlay" id="overviewOverlay">
+  <div class="overlay-card">
+    <div class="overlay-head">
+      <h2>Alle Stationen</h2>
+      <button onclick="closeOverview()">✕</button>
+    </div>
+    <div id="overviewMap"></div>
+    <div class="overlay-footer">
+      <a id="fullRouteLink" href="#" target="_blank" rel="noopener">Gesamte Route in Google Maps öffnen ↗</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const stations = [
+{
+  eyebrow: "Einführung",
+  meta: "vor dem Start",
+  title: "Tübingen",
+  subtitle: "Universitätsstadt am Neckar",
+  lat: 48.5202848, lng: 9.05353,
+  facts: [
+    "Erstmals 1078 als Burg \"Twingia\" urkundlich erwähnt – auf dem Bergsporn über dem Zusammenfluss von Neckar und Ammer gelegen.",
+    "Jahrhundertelang Sitz der Pfalzgrafen von Tübingen, bevor die Grafschaft 1342 an Württemberg verkauft wurde.",
+    "1477 gründete Graf Eberhard V. (\"im Bart\") die Universität – bis heute prägt sie die Stadt so stark, dass ein bekanntes Bonmot lautet: Tübingen sei keine Stadt mit einer Universität, sondern eine Universität mit einer Stadt.",
+    "Unter den Studenten und Dozenten finden sich Johannes Kepler, Friedrich Hölderlin, Georg Wilhelm Friedrich Hegel, Friedrich Schelling und – Jahrhunderte später – Joseph Ratzinger als Theologieprofessor.",
+    "Im Zweiten Weltkrieg blieb die Altstadt weitgehend unzerstört, weshalb das mittelalterliche Stadtbild mit seinen Fachwerkhäusern bis heute außergewöhnlich vollständig erhalten ist.",
+    "Bis heute ist rund ein Drittel der Einwohnerschaft an der Universität eingeschrieben – kaum eine andere deutsche Stadt lebt so unmittelbar im Rhythmus des Semesters."
+  ],
+  compass: [["1078","Erste Erwähnung"], ["1342","An Württemberg"], ["1477","Universitätsgründung"], ["1536","Tübinger Stift"], ["1945","Kriegsende ohne Zerstörung"]],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 01",
+  meta: "Start · ca. 15 Min",
+  title: "Marktplatz",
+  subtitle: "Fachwerk, Rathaus und Neptunbrunnen",
+  lat: 48.5202848, lng: 9.05353,
+  facts: [
+    "Herzstück der Altstadt, gesäumt von bunten Fachwerkhäusern aus dem 15. bis 17. Jahrhundert.",
+    "Das Rathaus (Kern von 1435) trägt eine 1511 eingebaute astronomische Uhr sowie ein farbenfrohes Fassadengemälde, das im 19. Jahrhundert entstand.",
+    "Der Neptunbrunnen (1617) zählt zu den bedeutendsten Renaissance-Brunnen Süddeutschlands.",
+    "Rund um den Platz reihen sich enge Gassen mit Cafés und kleinen Läden – typisch für das gewachsene mittelalterliche Straßennetz."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Eine Urkunde, die es nie gab",
+  anekdoteText:"Auf dem Fassadengemälde von 1876 hält Graf Eberhard im Bart, der Gründer der Universität, stolz eine Gründungsurkunde in den Händen. Nur: Eine solche Urkunde hat es in dieser Form nie gegeben – der Maler Ludwig Lesker erfand die Szene anlässlich des 400-jährigen Universitätsjubiläums frei nach künstlerischer Fantasie und schmuggelte dabei sogar dezent seinen eigenen Namen in das gemalte Pergament. Ein hübscher Beleg dafür, wie viel Legende manchmal in scheinbar historischen Bildern steckt."
+},
+{
+  eyebrow: "Station 02",
+  meta: "ca. 15 Min",
+  title: "Stiftskirche St. Georg",
+  subtitle: "Eine Kirche, zwei Konfessionen",
+  lat: 48.5201414, lng: 9.0559735,
+  facts: [
+    "Spätgotische Stiftskirche, erbaut 1470–1529 als Grablege der Grafen und Herzöge von Württemberg.",
+    "Der Chorraum beherbergt die Fürstengruft mit prächtigen Grabdenkmälern der württembergischen Herrscher – ein Höhepunkt Renaissance-zeitlicher Bildhauerkunst.",
+    "Der Turm ist älter als das gotische Kirchenschiff und geht auf einen romanischen Vorgängerbau zurück.",
+    "Der Turm ist zu besteigen und bietet einen Panoramablick über die Dächer der Altstadt und den Neckar."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Der Lettner, der nicht weichen musste",
+  anekdoteText:"In den meisten Kirchen wurde mit der Reformation der Lettner entfernt – jene steinerne Schranke, die einst Klerus und Laien trennte. In Tübingen blieb er stehen, weil Herzog Ulrich, der 1534 die Reformation in Württemberg einführte, eine pragmatische Idee hatte: Er machte den Chorraum kurzerhand zur Grablege des württembergischen Fürstenhauses. Da dort fortan keine Gottesdienste mehr stattfanden, blieb die Abtrennung einfach sinnvoll – und der prächtige gotische Lettner von 1490 gilt heute als einer der am besten erhaltenen Süddeutschlands."
+},
+{
+  eyebrow: "Station 03",
+  meta: "ca. 10 Min",
+  title: "Tübinger Stift",
+  subtitle: "Wohnheim dreier Geistesgrößen",
+  lat: 48.5193546, lng: 9.053598,
+  facts: [
+    "1536 in den Gebäuden eines ehemaligen Augustinerklosters gegründet – bis heute Ausbildungsstätte für württembergische Theologinnen und Theologen im Verbund mit der Universität.",
+    "Zu den bekanntesten Bewohnern zählen Johannes Kepler und später der Dichter Friedrich Schiller schrieb hier über seine Studienzeit hinaus verbundene Werke.",
+    "Von 1788 bis 1793 lebten Friedrich Hölderlin, Georg Wilhelm Friedrich Hegel und Friedrich Schelling zeitweise als Stipendiaten und teils sogar als Stubengenossen im Stift.",
+    "Das Gebäude liegt markant über dem Neckar und ist von der gegenüberliegenden Flussseite besonders gut zu fotografieren."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Der Freiheitsbaum der Stubengenossen",
+  anekdoteText:"Als die Nachricht von der Französischen Revolution 1793 auch Tübingen erreichte, sollen die jungen Stiftler Hölderlin, Hegel und Schelling gemeinsam einen Freiheitsbaum gepflanzt und die neuen Ideale von Freiheit und Vernunft gefeiert haben – zum Missfallen der strengen Stiftsleitung. Aus den einstigen Zimmergenossen wurden später einer der bedeutendsten Lyriker und zwei der einflussreichsten Philosophen der deutschen Geistesgeschichte."
+},
+{
+  eyebrow: "Station 04",
+  meta: "ca. 15 Min",
+  title: "Neckarfront & Hölderlinturm",
+  subtitle: "Der Dichter am Fluss",
+  lat: 48.5192975, lng: 9.0557425,
+  facts: [
+    "Die Neckarfront mit ihren schmalen Giebelhäusern über der Flussmauer gehört zu den meistfotografierten Stadtansichten Deutschlands.",
+    "Im gelben Turmhaus an der Bursagasse verbrachte der Dichter Friedrich Hölderlin von 1807 bis zu seinem Tod 1843 – also 36 Jahre – sein späteres Leben.",
+    "Nach einer schweren gesundheitlichen Krise wurde Hölderlin bei der Schreinerfamilie Zimmer aufgenommen, die ihn bis zuletzt betreute; der Turm trägt bis heute ihren Namen.",
+    "Heute ist der Turm ein literarisches Museum, das Leben und Werk Hölderlins zeigt."
+  ],
+  anekdoteLabel:null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 05",
+  meta: "ca. 10 Min",
+  title: "Platanenallee",
+  subtitle: "Die Neckarinsel der Studierenden",
+  lat: 48.5186034, lng: 9.0549409,
+  facts: [
+    "Schmale, von Platanen gesäumte Insel im Neckar, seit dem frühen 19. Jahrhundert als Promenade angelegt.",
+    "Von hier aus bietet sich der klassische Blick auf Hölderlinturm, Stiftskirche und die Altstadt-Silhouette über dem Fluss.",
+    "Seit 1904 finden hier die legendären Stocherkahnrennen statt – ein studentischer Bootswettbewerb mit Stakstangen statt Rudern."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Verlieren mit Stil",
+  anekdoteText:"Beim jährlichen Stocherkahnrennen treten Studierende verschiedener Fakultäten in wackligen Kähnen gegeneinander an – Geschwindigkeit ist dabei fast Nebensache. Prämiert wird traditionell auch der originellste, dramatischste oder komischste Auftritt, und wer besonders kreativ scheitert oder als Letzter mit größtem Trara ins Ziel staakt, kann auf ebenso viel Applaus hoffen wie das schnellste Boot. Ernsthafter Ehrgeiz und studentischer Klamauk gehen hier seit über hundert Jahren Hand in Hand."
+},
+{
+  eyebrow: "Station 06",
+  meta: "Abschluss · ca. 20 Min",
+  title: "Schloss Hohentübingen",
+  subtitle: "Renaissanceschloss mit Eiszeitkunst",
+  lat: 48.5194632, lng: 9.0503928,
+  facts: [
+    "Aus einer mittelalterlichen Burg (erste Erwähnung 1078) im 16./17. Jahrhundert zum Renaissanceschloss der württembergischen Herzöge ausgebaut.",
+    "Das prächtige Portal von 1606 stammt vom bedeutenden Baumeister Heinrich Schickhardt.",
+    "Seit 1816 gehört das Schloss zur Universität; heute beherbergt es die Museen der Universität Tübingen (MUT) mit ägyptischen, klassischen und vorgeschichtlichen Sammlungen.",
+    "Höhepunkt der Sammlung sind eiszeitliche Elfenbeinfiguren aus den Schwäbische-Alb-Höhlen – mit über 35.000 Jahren zählen sie zu den ältesten bekannten figürlichen Kunstwerken der Menschheit und sind Teil eines UNESCO-Welterbes.",
+    "Von der Schlossterrasse aus reicht der Blick über die gesamte Altstadt und das Neckartal – ein stimmungsvoller Schlusspunkt des Rundgangs."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Die älteste Musik der Menschheit",
+  anekdoteText:"In denselben Höhlen der Schwäbischen Alb, aus denen die eiszeitlichen Elfenbeinfiguren stammen, fanden Archäologen auch jahrzehntealte Flöten aus Vogelknochen und Mammutelfenbein – mit rund 40.000 Jahren die ältesten bekannten Musikinstrumente der Welt. Im Schloss ausgestellt, erzählen die kleinen, sorgfältig durchbohrten Fundstücke eine verblüffende Geschichte: Schon die frühesten modernen Menschen Europas machten nicht nur Werkzeuge und Schmuck, sondern offenbar auch ganz bewusst Musik."
+}
+];
+
+let current = 0;
+const slidesEl = document.getElementById('slides');
+const routeDots = document.getElementById('routeDots');
+const routeFill = document.getElementById('routeFill');
+const totalLen = 560;
+
+stations.forEach((s, i) => {
+  const el = document.createElement('div');
+  el.className = 'slide' + (i===0 ? ' active' : '');
+  el.id = 'slide-' + i;
+  el.innerHTML = `
+    <div class="head">
+      <div class="eyebrow"><span>${s.eyebrow}</span><span>${s.meta}</span></div>
+      <h1>${s.title}</h1>
+      <div class="subtitle">${s.subtitle}</div>
+    </div>
+    <div class="body-scroll">
+      <ul class="facts">${s.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${s.compass ? `<div class="compass">${s.compass.map(c=>`<div><b>${c[0]}</b> ${c[1]}</div>`).join('')}</div>` : ''}
+      ${s.lat ? `
+      <div class="mapbox">
+        <div class="coords">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+        <iframe loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${s.lng-0.004}%2C${s.lat-0.0025}%2C${s.lng+0.004}%2C${s.lat+0.0025}&layer=mapnik&marker=${s.lat}%2C${s.lng}"></iframe>
+        <div class="maplinks">
+          <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener">Google Maps ↗</a>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=walking" target="_blank" rel="noopener">Navigation starten ↗</a>
+        </div>
+      </div>` : ''}
+      ${s.anekdoteText ? `
+      <div class="anekdote">
+        <span class="anekdote-label">${s.anekdoteLabel}</span>
+        <h3>${s.anekdoteTitle}</h3>
+        <p>${s.anekdoteText}</p>
+      </div>` : ''}
+    </div>
+  `;
+  slidesEl.appendChild(el);
+
+  const x = 20 + (i * (totalLen / (stations.length - 1)));
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','route-dot');
+  g.setAttribute('data-i', i);
+  g.innerHTML = `<circle class="pulse" cx="${x}" cy="17" r="7"></circle><circle class="base" cx="${x}" cy="17" r="5"></circle>`;
+  g.addEventListener('click', () => { current = i; render(); });
+  routeDots.appendChild(g);
+});
+
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=> el.classList.toggle('active', i===current));
+  document.querySelectorAll('.route-dot').forEach((el,i)=>{
+    el.classList.toggle('done', i < current);
+    el.classList.toggle('current', i === current);
+  });
+  const x = 20 + (current * (totalLen / (stations.length - 1)));
+  routeFill.setAttribute('d', `M20,17 L${x},17`);
+  document.getElementById('counter').textContent = (current+1) + ' / ' + stations.length;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === stations.length - 1;
+  document.querySelector('.body-scroll:not([style*="display: none"])');
+  const active = document.querySelector('.slide.active .body-scroll');
+  if(active) active.scrollTop = 0;
+}
+function go(dir){
+  const next = current + dir;
+  if(next < 0 || next > stations.length - 1) return;
+  current = next;
+  render();
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight') go(1);
+  if(e.key === 'ArrowLeft') go(-1);
+});
+let touchX = null;
+document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  touchX = null;
+});
+render();
+
+/* --- Overview map with all stations --- */
+let overviewMap = null;
+const routeStations = stations.filter(s => s.eyebrow.startsWith('Station'));
+
+function openOverview(){
+  document.getElementById('overviewOverlay').classList.add('open');
+  if(!overviewMap){
+    overviewMap = L.map('overviewMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap-Mitwirkende',
+      maxZoom: 19
+    }).addTo(overviewMap);
+
+    const latlngs = routeStations.map(s => [s.lat, s.lng]);
+    const brickIcon = (num) => L.divIcon({
+      className: '',
+      html: `<div style="background:#a83f2e;color:#fbf6ec;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;border:2px solid #fbf6ec;box-shadow:0 2px 6px rgba(0,0,0,0.35);">${num}</div>`,
+      iconSize: [26,26],
+      iconAnchor: [13,13]
+    });
+
+    routeStations.forEach((s, i) => {
+      L.marker([s.lat, s.lng], { icon: brickIcon(i+1) })
+        .addTo(overviewMap)
+        .bindPopup(`<b>${i+1}. ${s.title}</b><br>${s.subtitle}`);
+    });
+
+    L.polyline(latlngs, { color:'#a83f2e', weight:3, dashArray:'6 6' }).addTo(overviewMap);
+    overviewMap.fitBounds(L.latLngBounds(latlngs), { padding:[36,36] });
+
+    const origin = routeStations[0];
+    const dest = routeStations[routeStations.length - 1];
+    const waypoints = routeStations.slice(1, -1).map(s => `${s.lat},${s.lng}`).join('|');
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&waypoints=${waypoints}&travelmode=walking`;
+    document.getElementById('fullRouteLink').href = url;
+  } else {
+    setTimeout(() => overviewMap.invalidateSize(), 50);
+  }
+}
+function closeOverview(){
+  document.getElementById('overviewOverlay').classList.remove('open');
+}
+document.getElementById('overviewOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'overviewOverlay') closeOverview();
+});
+</script>
+</body>
+</html>
