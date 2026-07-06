@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Heidelberg zu Fuß — Stadtrundgang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --brick:#a83f2e;
+    --brick-dark:#7a2c20;
+    --lake:#28454d;
+    --lake-light:#3f6a72;
+    --cream:#f2e8d6;
+    --paper:#fbf6ec;
+    --ink:#271f18;
+    --gold:#c69a3c;
+    --line: rgba(39,31,24,0.14);
+    --radius: 2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--lake);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.04), transparent 45%);
+    color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  .stage{
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:24px 18px;
+  }
+  .card{
+    background:var(--paper);
+    width:100%;
+    max-width:640px;
+    height:100%;
+    max-height:900px;
+    border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.06);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    position:relative;
+    min-height:0;
+  }
+  /* --- Route line (signature element) --- */
+  .route{
+    padding:16px 24px 16px;
+    background:var(--cream);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .route-topbar{
+    display:flex;
+    justify-content:flex-end;
+    margin-bottom:10px;
+  }
+  .overview-btn{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:none;
+    border:1px solid var(--brick-dark);
+    color:var(--brick-dark);
+    padding:5px 10px;
+    cursor:pointer;
+    transition:background .2s, color .2s;
+  }
+  .overview-btn:hover{ background:var(--brick-dark); color:var(--paper); }
+  .route svg{ display:block; width:100%; height:34px; overflow:visible; }
+  .route-track{ stroke:rgba(39,31,24,0.18); stroke-width:2; fill:none; }
+  .route-fill{ stroke:var(--brick); stroke-width:2; fill:none; transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1); }
+  .route-dot{ cursor:pointer; }
+  .route-dot circle.base{ fill:var(--paper); stroke:rgba(39,31,24,0.35); stroke-width:1.5; transition:all .3s ease; }
+  .route-dot.done circle.base{ fill:var(--brick); stroke:var(--brick); }
+  .route-dot.current circle.base{ fill:var(--gold); stroke:var(--gold); r:7; }
+  .route-dot.current circle.pulse{ opacity:1; }
+  .route-dot circle.pulse{ fill:none; stroke:var(--gold); stroke-width:1.5; opacity:0; transform-origin:center; animation:pulse 2.2s ease-out infinite; }
+  @keyframes pulse{ 0%{ r:7; opacity:.7;} 100%{ r:16; opacity:0;} }
+
+  .head{
+    padding:20px 28px 0;
+    flex-shrink:0;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  h1{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(28px,6vw,40px);
+    line-height:1.05;
+    margin:8px 0 2px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:500;
+    color:var(--lake);
+    font-size:16px;
+    margin:0 0 14px;
+  }
+  .body-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 28px 24px;
+  }
+  .body-scroll::-webkit-scrollbar{ width:6px; }
+  .body-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .facts{ margin:6px 0 0; padding:0; list-style:none; }
+  .facts li{
+    position:relative;
+    padding-left:20px;
+    margin-bottom:11px;
+    font-size:15.5px;
+    line-height:1.55;
+  }
+  .facts li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:6px; height:6px;
+    background:var(--brick);
+  }
+  .anekdote{
+    margin-top:22px;
+    background:linear-gradient(180deg, var(--cream), rgba(242,232,214,0.5));
+    border-left:3px solid var(--gold);
+    padding:16px 18px 18px;
+  }
+  .anekdote-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:block;
+    margin-bottom:6px;
+  }
+  .anekdote h3{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:18px;
+    margin:0 0 8px;
+    color:var(--brick-dark);
+  }
+  .anekdote p{
+    margin:0;
+    font-size:15px;
+    line-height:1.62;
+    color:var(--ink);
+  }
+  .mapbox{
+    margin-top:20px;
+    border:1px solid var(--line);
+    background:var(--cream);
+  }
+  .mapbox iframe{
+    width:100%;
+    height:180px;
+    display:block;
+    border:0;
+    filter:sepia(8%) saturate(85%);
+  }
+  .maplinks{
+    display:flex;
+    gap:1px;
+    background:var(--line);
+  }
+  .maplinks a{
+    flex:1;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    color:var(--ink);
+    background:var(--cream);
+    padding:11px 6px;
+    transition:background .2s,color .2s;
+  }
+  .maplinks a:hover{ background:var(--brick); color:var(--paper); }
+  .coords{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--lake-light);
+    padding:8px 10px 0;
+  }
+  .compass{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+    margin:16px 0 4px;
+  }
+  .compass div{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake);
+  }
+  .compass b{ color:var(--brick-dark); }
+
+  /* --- Nav --- */
+  .nav{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+  }
+  .nav button{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.06em;
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    padding:10px 16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:background .2s,color .2s;
+  }
+  .nav button:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  .nav button:disabled{ opacity:0.25; cursor:default; }
+  .nav .counter{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake-light);
+  }
+
+  .slide{
+    display:none;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    animation:fade .35s ease;
+  }
+  .slide.active{ display:flex; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  @media (max-width:480px){
+    .stage{ padding:0; }
+    .card{ max-height:none; border-radius:0; }
+    .head{ padding:16px 20px 0; }
+    .body-scroll{ padding:6px 20px 20px; }
+  }
+
+  /* --- Overview overlay --- */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(20,16,12,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .overlay-card{
+    background:var(--paper);
+    width:100%;
+    max-width:680px;
+    height:100%;
+    max-height:820px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .overlay-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 20px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-head h2{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0;
+  }
+  .overlay-head button{
+    background:none; border:1px solid var(--ink); color:var(--ink);
+    width:32px; height:32px; cursor:pointer; font-size:16px;
+    font-family:"IBM Plex Mono", monospace;
+  }
+  .overlay-head button:hover{ background:var(--ink); color:var(--paper); }
+  #overviewMap{ flex:1; }
+  .overlay-footer{
+    padding:12px 20px 16px;
+    border-top:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-footer a{
+    display:block;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    background:var(--brick);
+    color:var(--paper);
+    padding:12px;
+    transition:background .2s;
+  }
+  .overlay-footer a:hover{ background:var(--brick-dark); }
+  .leaflet-popup-content{ font-family:"Source Serif 4", serif; font-size:13.5px; }
+  .leaflet-popup-content b{ font-family:"Fraunces", serif; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+
+    <div class="route">
+      <div class="route-topbar">
+        <button class="overview-btn" onclick="openOverview()">Alle Stationen ↗</button>
+      </div>
+      <svg viewBox="0 0 600 34" id="routeSvg">
+        <path class="route-track" d="M20,17 L580,17"/>
+        <path class="route-fill" id="routeFill" d="M20,17 L580,17"/>
+        <g id="routeDots"></g>
+      </svg>
+    </div>
+
+    <div id="slides" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+
+    <div class="nav">
+      <button id="prevBtn" onclick="go(-1)">‹ Zurück</button>
+      <span class="counter" id="counter"></span>
+      <button id="nextBtn" onclick="go(1)">Weiter ›</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="overlay" id="overviewOverlay">
+  <div class="overlay-card">
+    <div class="overlay-head">
+      <h2>Alle Stationen</h2>
+      <button onclick="closeOverview()">✕</button>
+    </div>
+    <div id="overviewMap"></div>
+    <div class="overlay-footer">
+      <a id="fullRouteLink" href="#" target="_blank" rel="noopener">Gesamte Route in Google Maps öffnen ↗</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const stations = [
+{
+  eyebrow: "Einführung",
+  meta: "vor dem Start",
+  title: "Heidelberg",
+  subtitle: "Romantik, Ruine und Ruprecht-Karls-Universität",
+  lat: 49.4121288, lng: 8.7098959,
+  facts: [
+    "Erste urkundliche Erwähnung der Burg 1225; Heidelberg war vom 13. bis zum 18. Jahrhundert Residenz der Kurfürsten von der Pfalz und damit Zentrum eines der mächtigsten Fürstentümer im Alten Reich.",
+    "1386 gründete Kurfürst Ruprecht I. die Ruprecht-Karls-Universität – die älteste Universität Deutschlands.",
+    "Im Pfälzischen Erbfolgekrieg zerstörten französische Truppen 1689 und erneut 1693 Stadt und Schloss fast vollständig – seither ist das Schloss eine Ruine.",
+    "Anfang des 19. Jahrhunderts entdeckten Dichter und Maler der Romantik die Schlossruine für sich; Bilder von Turner und Gedichte machten Heidelberg zur Ikone deutscher Sehnsuchtsorte.",
+    "Die Altstadt blieb im Zweiten Weltkrieg von Bombenangriffen weitgehend verschont, weshalb sie bis heute als eine der besterhaltenen Barockaltstädte Deutschlands gilt.",
+    "Heute studieren rund 30.000 Menschen an der Universität – bei etwa 160.000 Einwohnern prägt studentisches Leben die gesamte Stadt."
+  ],
+  compass: [["1225","Erste Burg-Erwähnung"], ["1386","Universitätsgründung"], ["1693","Zerstörung durch Frankreich"], ["19. Jh.","Entdeckung durch die Romantik"], ["1945","Altstadt weitgehend verschont"]],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 01",
+  meta: "Start · ca. 15 Min",
+  title: "Marktplatz & Heiliggeistkirche",
+  subtitle: "Eine Kirche, zwei Konfessionen, 230 Jahre",
+  lat: 49.4121288, lng: 8.7098959,
+  facts: [
+    "Die spätgotische Heiliggeistkirche (1398–1515) aus rotem Neckartäler Sandstein ist die größte und bedeutendste Kirche Heidelbergs und war einst Grablege der Kurfürsten.",
+    "Der Herkulesbrunnen und das Rathaus (Kern von 1701–1705) prägen den Marktplatz, der seit dem Mittelalter Zentrum des städtischen Lebens ist.",
+    "In der Kirche befand sich einst die Bibliotheca Palatina, im 16./17. Jahrhundert eine der bedeutendsten Büchersammlungen Europas – 1623 als Kriegsbeute nach Rom gebracht.",
+    "Der 38 Meter hohe Kirchturm lässt sich besteigen und bietet einen Blick über die Altstadt bis zum Schloss."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Die Mauer, die zwei Konfessionen trennte",
+  anekdoteText:"Von 1706 bis 1936 – ganze 230 Jahre lang – teilte eine Steinmauer die Heiliggeistkirche in zwei Hälften: Das Kirchenschiff war protestantisch, der Chorraum katholisch, jede Seite mit eigener Orgel. Auf der einen spielte 1763 der siebenjährige Mozart auf der Durchreise, auf der anderen später Felix Mendelssohn Bartholdy. Erst 1936 gelang es dem Heidelberger Pfarrer Hermann Maas, die Mauer endgültig fallen zu lassen – ausgerechnet mitten in der NS-Zeit ein stilles Zeichen der Versöhnung."
+},
+{
+  eyebrow: "Station 02",
+  meta: "ca. 15 Min",
+  title: "Universitätsplatz & Studentenkarzer",
+  subtitle: "Haft als Ehrensache",
+  lat: 49.411342, lng: 8.7067031,
+  facts: [
+    "Die Alte Universität am Universitätsplatz beherbergt die Alte Aula und das Universitätsmuseum – Kern der 1386 gegründeten Hochschule.",
+    "Der Studentenkarzer in der Augustinergasse war von 1778 bis 1914 in Betrieb: Hier saßen Studenten Strafen für nächtliche Ruhestörung oder ähnliche Vergehen ab.",
+    "Bis zu 1.000 Jahre akademische Rechtsprechung: Die Universität besaß seit ihrer Gründung eine eigene Gerichtsbarkeit über ihre Mitglieder – bis 1886 nur noch für Disziplinarfälle.",
+    "Die Wände sind bis heute mit bunten Wandmalereien und Inschriften bedeckt, die Generationen von Insassen hinterlassen haben."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Gefängnis als Auszeichnung",
+  anekdoteText:"So kurios es klingt: In den letzten Jahrzehnten seines Bestehens galt ein Aufenthalt im Karzer unter Studenten fast als Ehrensache. Wer nie eingesessen hatte, hatte etwas verpasst. Die Inhaftierten durften weiterhin Vorlesungen besuchen, sich Essen bringen lassen und sogar eigene Bettwäsche mitbringen – und vertrieben sich die Zeit damit, Wände und Möbel mit Porträts, Wappen und spöttischen Versen zu verzieren. Was als Strafe gedacht war, wurde so zur bunten Selbstinszenierung einer ganzen Studentengeneration."
+},
+{
+  eyebrow: "Station 03",
+  meta: "ca. 10 Min",
+  title: "Kornmarkt",
+  subtitle: "Talstation zum Schloss",
+  lat: 49.4119863, lng: 8.7117016,
+  facts: [
+    "Ehemaliger Getreidemarkt am Fuß des Schlossbergs, heute einer der beliebtesten Fotospots der Altstadt mit Blick hinauf zur Schlossruine.",
+    "Die barocke Kornmarktmadonna aus dem frühen 18. Jahrhundert ließ Kurfürst Karl Philipp als sichtbares Zeichen der Gegenreformation aufstellen.",
+    "Von hier fährt die historische Bergbahn (seit 1890, elektrisch seit 1907) hinauf zum Schloss und weiter zum Königstuhl.",
+    "Im Haus Graimberg am Platz wohnte einst Graf Charles de Graimberg, der Begründer der städtischen Schlosssammlungen."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 04",
+  meta: "ca. 20 Min",
+  title: "Heidelberger Schloss",
+  subtitle: "Ruine, Weinfass und Hofnarr",
+  lat: 49.4106196, lng: 8.7153092,
+  facts: [
+    "Aus einer mittelalterlichen Burg im 16. Jahrhundert zum repräsentativen Renaissanceschloss der Kurfürsten ausgebaut – heute eine der berühmtesten Ruinen Deutschlands.",
+    "1689 und 1693 von französischen Truppen im Pfälzischen Erbfolgekrieg gesprengt und niedergebrannt; ein Wiederaufbau unterblieb, ein Blitzschlag 1764 zerstörte weitere Teile endgültig.",
+    "Im Fassbau lagert das Große Fass von 1751 mit einem Fassungsvermögen von über 220.000 Litern – das größte je genutzte Weinfass der Welt.",
+    "Vom Schlossgarten aus reicht der Blick an klaren Tagen bis nach Mannheim; das Deutsche Apotheken-Museum im Ottheinrichsbau zeigt Sammlungen von der Renaissance bis ins 19. Jahrhundert."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Perkeo und die Frage, die niemand ablehnte",
+  anekdoteText:"Bewacht wird das Große Fass bis heute von einer hölzernen Figur: Perkeo, ein kleinwüchsiger Hofnarr aus Südtirol, den Kurfürst Karl Philipp Anfang des 18. Jahrhunderts an seinen Hof holte. Berühmt war er für seine schier unbegrenzte Trinkfestigkeit – auf die Frage, ob er noch einen Becher Wein wolle, antwortete er stets auf Italienisch \"Perché no?\" (Warum nicht?), woraus sein Spitzname entstand. Der Legende nach soll ausgerechnet ein Glas Wasser ihm zum Verhängnis geworden sein."
+},
+{
+  eyebrow: "Station 05",
+  meta: "ca. 10 Min",
+  title: "Alte Brücke & Brückenaffe",
+  subtitle: "Spott mit langer Tradition",
+  lat: 49.4133317, lng: 8.7094599,
+  facts: [
+    "Die heutige Karl-Theodor-Brücke von 1788 ist bereits die neunte Brücke an dieser Stelle seit dem 13. Jahrhundert – ihre Vorgänger fielen wiederholt Hochwasser und Kriegen zum Opfer.",
+    "Der bronzene Brückenaffe (1979, Gernot Rumpf) hält einen Spiegel und steht in der Tradition eines Vorgängers, der bereits 1481 urkundlich erwähnt wird.",
+    "Von der Brücke aus zeigt sich der klassische Blick auf Altstadt und Schloss – eines der meistfotografierten Motive Heidelbergs."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Der Gruß, der nach Mainz ging",
+  anekdoteText:"Der ursprüngliche Brückenaffe saß im Nordturm der Brücke – mit nacktem Hinterteil demonstrativ Richtung Mainz gewandt. Das war kein Zufall: Der Turm markierte die Grenze zum Herrschaftsgebiet der Mainzer Erzbischöfe, und der Affe verspottete jeden, der von dort kam. Bis heute hält er den Vorbeigehenden seinen Spiegel entgegen – ein Aufruf zur Selbstreflexion, den man mit einem Griff an die ausgestreckten Finger verbinden kann, wenn man laut Aberglauben nach Heidelberg zurückkehren möchte."
+},
+{
+  eyebrow: "Station 06",
+  meta: "Abschluss · ca. 20 Min",
+  title: "Philosophenweg",
+  subtitle: "Der Blick von der anderen Seite",
+  lat: 49.4153526, lng: 8.7010358,
+  facts: [
+    "Der Weg am Südhang des Heiligenbergs, gegenüber der Altstadt gelegen, ist seit dem 19. Jahrhundert als Spazier- und Denkweg von Professoren und Gelehrten bekannt.",
+    "Der Südhang zählt zu den wärmsten Lagen Deutschlands – hier gedeihen mediterrane Pflanzen wie Feigen, Mandeln und Granatapfel.",
+    "Von den Aussichtspunkten reicht der Blick über den Neckar auf die gesamte Altstadt, die Alte Brücke und das Schloss – der klassische Panoramablick Heidelbergs.",
+    "Ein steiler Zugang führt über den Schlangenweg direkt vom nördlichen Brückenende hinauf."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+}
+];
+
+let current = 0;
+const slidesEl = document.getElementById('slides');
+const routeDots = document.getElementById('routeDots');
+const routeFill = document.getElementById('routeFill');
+const totalLen = 560;
+
+stations.forEach((s, i) => {
+  const el = document.createElement('div');
+  el.className = 'slide' + (i===0 ? ' active' : '');
+  el.id = 'slide-' + i;
+  el.innerHTML = `
+    <div class="head">
+      <div class="eyebrow"><span>${s.eyebrow}</span><span>${s.meta}</span></div>
+      <h1>${s.title}</h1>
+      <div class="subtitle">${s.subtitle}</div>
+    </div>
+    <div class="body-scroll">
+      <ul class="facts">${s.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${s.compass ? `<div class="compass">${s.compass.map(c=>`<div><b>${c[0]}</b> ${c[1]}</div>`).join('')}</div>` : ''}
+      ${s.lat ? `
+      <div class="mapbox">
+        <div class="coords">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+        <iframe loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${s.lng-0.004}%2C${s.lat-0.0025}%2C${s.lng+0.004}%2C${s.lat+0.0025}&layer=mapnik&marker=${s.lat}%2C${s.lng}"></iframe>
+        <div class="maplinks">
+          <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener">Google Maps ↗</a>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=walking" target="_blank" rel="noopener">Navigation starten ↗</a>
+        </div>
+      </div>` : ''}
+      ${s.anekdoteText ? `
+      <div class="anekdote">
+        <span class="anekdote-label">${s.anekdoteLabel}</span>
+        <h3>${s.anekdoteTitle}</h3>
+        <p>${s.anekdoteText}</p>
+      </div>` : ''}
+    </div>
+  `;
+  slidesEl.appendChild(el);
+
+  const x = 20 + (i * (totalLen / (stations.length - 1)));
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','route-dot');
+  g.setAttribute('data-i', i);
+  g.innerHTML = `<circle class="pulse" cx="${x}" cy="17" r="7"></circle><circle class="base" cx="${x}" cy="17" r="5"></circle>`;
+  g.addEventListener('click', () => { current = i; render(); });
+  routeDots.appendChild(g);
+});
+
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=> el.classList.toggle('active', i===current));
+  document.querySelectorAll('.route-dot').forEach((el,i)=>{
+    el.classList.toggle('done', i < current);
+    el.classList.toggle('current', i === current);
+  });
+  const x = 20 + (current * (totalLen / (stations.length - 1)));
+  routeFill.setAttribute('d', `M20,17 L${x},17`);
+  document.getElementById('counter').textContent = (current+1) + ' / ' + stations.length;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === stations.length - 1;
+  document.querySelector('.body-scroll:not([style*="display: none"])');
+  const active = document.querySelector('.slide.active .body-scroll');
+  if(active) active.scrollTop = 0;
+}
+function go(dir){
+  const next = current + dir;
+  if(next < 0 || next > stations.length - 1) return;
+  current = next;
+  render();
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight') go(1);
+  if(e.key === 'ArrowLeft') go(-1);
+});
+let touchX = null;
+document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  touchX = null;
+});
+render();
+
+/* --- Overview map with all stations --- */
+let overviewMap = null;
+const routeStations = stations.filter(s => s.eyebrow.startsWith('Station'));
+
+function openOverview(){
+  document.getElementById('overviewOverlay').classList.add('open');
+  if(!overviewMap){
+    overviewMap = L.map('overviewMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap-Mitwirkende',
+      maxZoom: 19
+    }).addTo(overviewMap);
+
+    const latlngs = routeStations.map(s => [s.lat, s.lng]);
+    const brickIcon = (num) => L.divIcon({
+      className: '',
+      html: `<div style="background:#a83f2e;color:#fbf6ec;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;border:2px solid #fbf6ec;box-shadow:0 2px 6px rgba(0,0,0,0.35);">${num}</div>`,
+      iconSize: [26,26],
+      iconAnchor: [13,13]
+    });
+
+    routeStations.forEach((s, i) => {
+      L.marker([s.lat, s.lng], { icon: brickIcon(i+1) })
+        .addTo(overviewMap)
+        .bindPopup(`<b>${i+1}. ${s.title}</b><br>${s.subtitle}`);
+    });
+
+    L.polyline(latlngs, { color:'#a83f2e', weight:3, dashArray:'6 6' }).addTo(overviewMap);
+    overviewMap.fitBounds(L.latLngBounds(latlngs), { padding:[36,36] });
+
+    const origin = routeStations[0];
+    const dest = routeStations[routeStations.length - 1];
+    const waypoints = routeStations.slice(1, -1).map(s => `${s.lat},${s.lng}`).join('|');
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&waypoints=${waypoints}&travelmode=walking`;
+    document.getElementById('fullRouteLink').href = url;
+  } else {
+    setTimeout(() => overviewMap.invalidateSize(), 50);
+  }
+}
+function closeOverview(){
+  document.getElementById('overviewOverlay').classList.remove('open');
+}
+document.getElementById('overviewOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'overviewOverlay') closeOverview();
+});
+</script>
+</body>
+</html>

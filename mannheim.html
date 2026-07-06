@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Mannheim zu Fuß — Stadtrundgang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --brick:#a83f2e;
+    --brick-dark:#7a2c20;
+    --lake:#28454d;
+    --lake-light:#3f6a72;
+    --cream:#f2e8d6;
+    --paper:#fbf6ec;
+    --ink:#271f18;
+    --gold:#c69a3c;
+    --line: rgba(39,31,24,0.14);
+    --radius: 2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--lake);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.04), transparent 45%);
+    color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  .stage{
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:24px 18px;
+  }
+  .card{
+    background:var(--paper);
+    width:100%;
+    max-width:640px;
+    height:100%;
+    max-height:900px;
+    border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.06);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    position:relative;
+    min-height:0;
+  }
+  /* --- Route line (signature element) --- */
+  .route{
+    padding:16px 24px 16px;
+    background:var(--cream);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .route-topbar{
+    display:flex;
+    justify-content:flex-end;
+    margin-bottom:10px;
+  }
+  .overview-btn{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:none;
+    border:1px solid var(--brick-dark);
+    color:var(--brick-dark);
+    padding:5px 10px;
+    cursor:pointer;
+    transition:background .2s, color .2s;
+  }
+  .overview-btn:hover{ background:var(--brick-dark); color:var(--paper); }
+  .route svg{ display:block; width:100%; height:34px; overflow:visible; }
+  .route-track{ stroke:rgba(39,31,24,0.18); stroke-width:2; fill:none; }
+  .route-fill{ stroke:var(--brick); stroke-width:2; fill:none; transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1); }
+  .route-dot{ cursor:pointer; }
+  .route-dot circle.base{ fill:var(--paper); stroke:rgba(39,31,24,0.35); stroke-width:1.5; transition:all .3s ease; }
+  .route-dot.done circle.base{ fill:var(--brick); stroke:var(--brick); }
+  .route-dot.current circle.base{ fill:var(--gold); stroke:var(--gold); r:7; }
+  .route-dot.current circle.pulse{ opacity:1; }
+  .route-dot circle.pulse{ fill:none; stroke:var(--gold); stroke-width:1.5; opacity:0; transform-origin:center; animation:pulse 2.2s ease-out infinite; }
+  @keyframes pulse{ 0%{ r:7; opacity:.7;} 100%{ r:16; opacity:0;} }
+
+  .head{
+    padding:20px 28px 0;
+    flex-shrink:0;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  h1{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(28px,6vw,40px);
+    line-height:1.05;
+    margin:8px 0 2px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:500;
+    color:var(--lake);
+    font-size:16px;
+    margin:0 0 14px;
+  }
+  .body-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 28px 24px;
+  }
+  .body-scroll::-webkit-scrollbar{ width:6px; }
+  .body-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .facts{ margin:6px 0 0; padding:0; list-style:none; }
+  .facts li{
+    position:relative;
+    padding-left:20px;
+    margin-bottom:11px;
+    font-size:15.5px;
+    line-height:1.55;
+  }
+  .facts li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:6px; height:6px;
+    background:var(--brick);
+  }
+  .anekdote{
+    margin-top:22px;
+    background:linear-gradient(180deg, var(--cream), rgba(242,232,214,0.5));
+    border-left:3px solid var(--gold);
+    padding:16px 18px 18px;
+  }
+  .anekdote-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:block;
+    margin-bottom:6px;
+  }
+  .anekdote h3{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:18px;
+    margin:0 0 8px;
+    color:var(--brick-dark);
+  }
+  .anekdote p{
+    margin:0;
+    font-size:15px;
+    line-height:1.62;
+    color:var(--ink);
+  }
+  .mapbox{
+    margin-top:20px;
+    border:1px solid var(--line);
+    background:var(--cream);
+  }
+  .mapbox iframe{
+    width:100%;
+    height:180px;
+    display:block;
+    border:0;
+    filter:sepia(8%) saturate(85%);
+  }
+  .maplinks{
+    display:flex;
+    gap:1px;
+    background:var(--line);
+  }
+  .maplinks a{
+    flex:1;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    color:var(--ink);
+    background:var(--cream);
+    padding:11px 6px;
+    transition:background .2s,color .2s;
+  }
+  .maplinks a:hover{ background:var(--brick); color:var(--paper); }
+  .coords{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--lake-light);
+    padding:8px 10px 0;
+  }
+  .compass{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+    margin:16px 0 4px;
+  }
+  .compass div{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake);
+  }
+  .compass b{ color:var(--brick-dark); }
+
+  /* --- Nav --- */
+  .nav{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+  }
+  .nav button{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.06em;
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    padding:10px 16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:background .2s,color .2s;
+  }
+  .nav button:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  .nav button:disabled{ opacity:0.25; cursor:default; }
+  .nav .counter{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake-light);
+  }
+
+  .slide{
+    display:none;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    animation:fade .35s ease;
+  }
+  .slide.active{ display:flex; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  @media (max-width:480px){
+    .stage{ padding:0; }
+    .card{ max-height:none; border-radius:0; }
+    .head{ padding:16px 20px 0; }
+    .body-scroll{ padding:6px 20px 20px; }
+  }
+
+  /* --- Overview overlay --- */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(20,16,12,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .overlay-card{
+    background:var(--paper);
+    width:100%;
+    max-width:680px;
+    height:100%;
+    max-height:820px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .overlay-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 20px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-head h2{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0;
+  }
+  .overlay-head button{
+    background:none; border:1px solid var(--ink); color:var(--ink);
+    width:32px; height:32px; cursor:pointer; font-size:16px;
+    font-family:"IBM Plex Mono", monospace;
+  }
+  .overlay-head button:hover{ background:var(--ink); color:var(--paper); }
+  #overviewMap{ flex:1; }
+  .overlay-footer{
+    padding:12px 20px 16px;
+    border-top:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .overlay-footer a{
+    display:block;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    background:var(--brick);
+    color:var(--paper);
+    padding:12px;
+    transition:background .2s;
+  }
+  .overlay-footer a:hover{ background:var(--brick-dark); }
+  .leaflet-popup-content{ font-family:"Source Serif 4", serif; font-size:13.5px; }
+  .leaflet-popup-content b{ font-family:"Fraunces", serif; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+
+    <div class="route">
+      <div class="route-topbar">
+        <button class="overview-btn" onclick="openOverview()">Alle Stationen ↗</button>
+      </div>
+      <svg viewBox="0 0 600 34" id="routeSvg">
+        <path class="route-track" d="M20,17 L580,17"/>
+        <path class="route-fill" id="routeFill" d="M20,17 L580,17"/>
+        <g id="routeDots"></g>
+      </svg>
+    </div>
+
+    <div id="slides" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+
+    <div class="nav">
+      <button id="prevBtn" onclick="go(-1)">‹ Zurück</button>
+      <span class="counter" id="counter"></span>
+      <button id="nextBtn" onclick="go(1)">Weiter ›</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="overlay" id="overviewOverlay">
+  <div class="overlay-card">
+    <div class="overlay-head">
+      <h2>Alle Stationen</h2>
+      <button onclick="closeOverview()">✕</button>
+    </div>
+    <div id="overviewMap"></div>
+    <div class="overlay-footer">
+      <a id="fullRouteLink" href="#" target="_blank" rel="noopener">Gesamte Route in Google Maps öffnen ↗</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const stations = [
+{
+  eyebrow: "Einführung",
+  meta: "vor dem Start",
+  title: "Mannheim",
+  subtitle: "Die Quadratestadt zwischen Rhein und Neckar",
+  lat: 49.4840188, lng: 8.4756253,
+  facts: [
+    "1606/1607 gründete Kurfürst Friedrich IV. von der Pfalz Mannheim am Zusammenfluss von Rhein und Neckar als planmäßig angelegte Festungs- und Handelsstadt.",
+    "Statt Straßennamen tragen die 144 schachbrettartig angeordneten Häuserblöcke der Innenstadt bis heute Buchstaben und Zahlen – etwa \"G 1\" oder \"O 7\" – ein in Deutschland einzigartiges System, das Mannheim den Beinamen \"Quadratestadt\" einbrachte.",
+    "1720 verlegte Kurfürst Karl Philipp seine Residenz von Heidelberg nach Mannheim und ließ das gewaltige Barockschloss errichten – Mannheim wurde damit für über 50 Jahre Hauptstadt der Kurpfalz.",
+    "Im Zweiten Weltkrieg wurde die Stadt durch alliierte Luftangriffe fast vollständig zerstört, darunter Schloss und Wasserturm; der Wiederaufbau prägt das heutige, sehr moderne Stadtbild.",
+    "Mannheim gilt als Geburtsstadt der modernen Mobilität: 1817 unternahm Karl Drais hier die erste Fahrt mit seiner \"Laufmaschine\", dem Vorläufer des Fahrrads, und 1886 meldete Carl Benz in Mannheim das erste Patent für ein Automobil an.",
+    "Seit 2014 ist Mannheim UNESCO City of Music – eine Anerkennung der langen Tradition der \"Mannheimer Schule\", jenes höfischen Orchesters, das im 18. Jahrhundert die europäische Orchestermusik mitbegründete."
+  ],
+  compass: [["1607","Stadtgründung"], ["1720","Residenz der Kurpfalz"], ["1817","Drais' Laufmaschine"], ["1886","Benz-Patent Automobil"], ["1945","Fast vollständige Zerstörung"]],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 01",
+  meta: "Start · ca. 15 Min",
+  title: "Wasserturm & Friedrichsplatz",
+  subtitle: "Jugendstil als Wahrzeichen",
+  lat: 49.4840188, lng: 8.4756253,
+  facts: [
+    "Der 60 Meter hohe Wasserturm (1886–1889, Architekt Gustav Halmhuber) entstand als Hochbehälter der neuen städtischen Wasserversorgung und zugleich als Denkmal zum 300-jährigen Stadtjubiläum.",
+    "Der ihn umgebende Friedrichsplatz gilt mit seinen Jugendstilbauten als eine der größten zusammenhängenden Jugendstilanlagen Deutschlands.",
+    "Im Zweiten Weltkrieg schwer beschädigt, wurde das Ensemble in den Nachkriegsjahren originalgetreu wiederhergestellt.",
+    "Direkt angrenzend liegt die Kunsthalle Mannheim mit einer bedeutenden Sammlung der Klassischen Moderne, unter anderem Werken von Édouard Manet."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 02",
+  meta: "ca. 15 Min",
+  title: "Planken & Paradeplatz",
+  subtitle: "Wo die Mobilität zweimal erfunden wurde",
+  lat: 49.4871605, lng: 8.4661582,
+  facts: [
+    "Die Planken bilden seit dem 18. Jahrhundert die zentrale Flanierachse der Stadt – ursprünglich die Grenze zwischen barocker Ober- und Unterstadt an der alten Festung Friedrichsburg.",
+    "Kurfürst Karl Theodor ließ hier Lindenreihen pflanzen, die die Mannheimer Bürgerschaft zum Spazieren einluden – ein barockes Vorbild heutiger Fußgängerzonen.",
+    "Der Paradeplatz war historisch der zentrale Exerzier- und Aufmarschplatz der Garnisonsstadt Mannheim.",
+    "Beide Straßenzüge liegen im Herzen der Quadrate und sind bis heute die belebteste Einkaufsachse der Stadt."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Zwei Weltneuheiten, wenige Gehminuten voneinander entfernt",
+  anekdoteText:"1817 saß Karl Drais in Mannheim erstmals auf seiner selbstgebauten \"Laufmaschine\" und rollte damit als Erster ohne Pferd auf zwei Rädern durch die Stadt – die Geburtsstunde des Fahrrads. Knapp 70 Jahre später, 1886, meldete der Ingenieur Carl Benz nur wenige Straßenzüge entfernt sein Patent für den ersten funktionsfähigen Motorwagen an. Zwei Erfindungen, die die persönliche Mobilität der Welt revolutionierten, haben also ihren Ursprung im selben kleinen Quadratenetz."
+},
+{
+  eyebrow: "Station 03",
+  meta: "ca. 10 Min",
+  title: "Marktplatz",
+  subtitle: "Mannheimia zwischen Rhein und Neckar",
+  lat: 49.4896963, lng: 8.4673863,
+  facts: [
+    "Zentrum der Stadt seit ihrer Gründung 1607; hier entstand mit dem ersten Rathaus auch der erste öffentliche Bau der jungen Stadt.",
+    "Der Doppelbau aus Altem Rathaus und katholischer Pfarrkirche St. Sebastian (ab 1700) gilt als ältestes noch erhaltenes Bauensemble Mannheims.",
+    "Den Marktplatzbrunnen in der Mitte des Platzes schenkte Kurfürst Karl Theodor der Stadt 1767 – die Figurengruppe zeigt Mannheim allegorisch als Handelsstadt zwischen Rhein und Neckar.",
+    "Bis 1732 residierte Kurfürst Karl Philipp in einem Palais direkt am Marktplatz, bevor er in das neu erbaute Schloss umziehen konnte."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Ein Brunnen, der eigentlich für Heidelberg gedacht war",
+  anekdoteText:"Die Figuren des Marktplatzbrunnens wurden 1719 gar nicht für Mannheim geschaffen, sondern für den Schlossgarten in Heidelberg – im Auftrag von Kurfürst Karl Philipp, der damals noch dort residierte. Erst sein Nachfolger Karl Theodor ließ die Figurengruppe über den Umweg Schwetzingen nach Mannheim bringen und 1767 zu einer neuen Allegorie auf die aufstrebende Handelsstadt umgestalten. Ein Kunstwerk, das gewissermaßen den Umzug der Kurpfalz von Heidelberg nach Mannheim im Kleinen nachvollzogen hat."
+},
+{
+  eyebrow: "Station 04",
+  meta: "ca. 15 Min",
+  title: "Jesuitenkirche",
+  subtitle: "Barockpracht für die Gegenreformation",
+  lat: 49.4862717, lng: 8.460734,
+  facts: [
+    "Erbaut 1733–1760 im Auftrag Kurfürst Karl Philipps, der mit dem Prachtbau die katholische Konfession in der überwiegend protestantischen Kurpfalz demonstrativ stärken wollte.",
+    "Gilt als eine der bedeutendsten Barockkirchen Süddeutschlands – innen reich mit Stuck, Marmor und Fresken ausgestattet.",
+    "Am Bau wirkten dieselben Hofarchitekten mit, die auch das Mannheimer Schloss planten, darunter Alessandro Galli da Bibiena.",
+    "Im Zweiten Weltkrieg fast vollständig zerstört und in den Nachkriegsjahrzehnten originalgetreu wiederaufgebaut."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 05",
+  meta: "ca. 20 Min",
+  title: "Mannheimer Schloss",
+  subtitle: "Größer als mancher Nachbar",
+  lat: 49.4829556, lng: 8.461786,
+  facts: [
+    "Mit rund 440 Metern Schaufassade eines der größten Barockschlösser Europas – nach Versailles die zweitgrößte durchgehende Schlossfassade des Kontinents.",
+    "Kurfürst Karl Philipp begann den Bau 1720, nachdem er seine Residenz von Heidelberg nach Mannheim verlegt hatte – ein Umzug, der auch mit dem jahrelangen Konfessionsstreit um die Heidelberger Heiliggeistkirche zusammenhing.",
+    "Unter Karl Theodor wurde der Hof zu einem der bedeutendsten Kulturzentren Europas: Das höfische Orchester, die \"Mannheimer Schule\", prägte die europäische Orchestermusik; auch der junge Wolfgang Amadeus Mozart komponierte und musizierte hier.",
+    "Die glanzvolle Ära endete 1777/78, als Karl Theodor nach einer bayerischen Erbschaft seine Residenz nach München verlegen musste – Mannheims Zeit als Hauptstadt war damit vorbei.",
+    "Im Zweiten Weltkrieg brannte das Schloss bis auf die Außenmauern nieder; heute beherbergt der wiederaufgebaute Bau die Universität Mannheim und ein Museum."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Station 06",
+  meta: "Abschluss · ca. 15 Min",
+  title: "Schlossgarten",
+  subtitle: "Grün am Rande der Quadrate",
+  lat: 49.4800632, lng: 8.4628124,
+  facts: [
+    "Weitläufiger Garten unmittelbar am Schloss, nahe dem Zusammenfluss von Rhein und Neckar, der Mannheims Lage einst so bedeutend machte.",
+    "Ruhiger Kontrast zum quirligen Quadrate-Raster der Innenstadt – ein passender, grüner Ausklang des Rundgangs.",
+    "Von hier ist es nur ein kurzer Weg zu den Rheinpromenaden, von denen aus sich die Lage der Stadt zwischen den beiden Flüssen gut nachvollziehen lässt."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+}
+];
+
+let current = 0;
+const slidesEl = document.getElementById('slides');
+const routeDots = document.getElementById('routeDots');
+const routeFill = document.getElementById('routeFill');
+const totalLen = 560;
+
+stations.forEach((s, i) => {
+  const el = document.createElement('div');
+  el.className = 'slide' + (i===0 ? ' active' : '');
+  el.id = 'slide-' + i;
+  el.innerHTML = `
+    <div class="head">
+      <div class="eyebrow"><span>${s.eyebrow}</span><span>${s.meta}</span></div>
+      <h1>${s.title}</h1>
+      <div class="subtitle">${s.subtitle}</div>
+    </div>
+    <div class="body-scroll">
+      <ul class="facts">${s.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${s.compass ? `<div class="compass">${s.compass.map(c=>`<div><b>${c[0]}</b> ${c[1]}</div>`).join('')}</div>` : ''}
+      ${s.lat ? `
+      <div class="mapbox">
+        <div class="coords">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+        <iframe loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${s.lng-0.004}%2C${s.lat-0.0025}%2C${s.lng+0.004}%2C${s.lat+0.0025}&layer=mapnik&marker=${s.lat}%2C${s.lng}"></iframe>
+        <div class="maplinks">
+          <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener">Google Maps ↗</a>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=walking" target="_blank" rel="noopener">Navigation starten ↗</a>
+        </div>
+      </div>` : ''}
+      ${s.anekdoteText ? `
+      <div class="anekdote">
+        <span class="anekdote-label">${s.anekdoteLabel}</span>
+        <h3>${s.anekdoteTitle}</h3>
+        <p>${s.anekdoteText}</p>
+      </div>` : ''}
+    </div>
+  `;
+  slidesEl.appendChild(el);
+
+  const x = 20 + (i * (totalLen / (stations.length - 1)));
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','route-dot');
+  g.setAttribute('data-i', i);
+  g.innerHTML = `<circle class="pulse" cx="${x}" cy="17" r="7"></circle><circle class="base" cx="${x}" cy="17" r="5"></circle>`;
+  g.addEventListener('click', () => { current = i; render(); });
+  routeDots.appendChild(g);
+});
+
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=> el.classList.toggle('active', i===current));
+  document.querySelectorAll('.route-dot').forEach((el,i)=>{
+    el.classList.toggle('done', i < current);
+    el.classList.toggle('current', i === current);
+  });
+  const x = 20 + (current * (totalLen / (stations.length - 1)));
+  routeFill.setAttribute('d', `M20,17 L${x},17`);
+  document.getElementById('counter').textContent = (current+1) + ' / ' + stations.length;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === stations.length - 1;
+  document.querySelector('.body-scroll:not([style*="display: none"])');
+  const active = document.querySelector('.slide.active .body-scroll');
+  if(active) active.scrollTop = 0;
+}
+function go(dir){
+  const next = current + dir;
+  if(next < 0 || next > stations.length - 1) return;
+  current = next;
+  render();
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight') go(1);
+  if(e.key === 'ArrowLeft') go(-1);
+});
+let touchX = null;
+document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  touchX = null;
+});
+render();
+
+/* --- Overview map with all stations --- */
+let overviewMap = null;
+const routeStations = stations.filter(s => s.eyebrow.startsWith('Station'));
+
+function openOverview(){
+  document.getElementById('overviewOverlay').classList.add('open');
+  if(!overviewMap){
+    overviewMap = L.map('overviewMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap-Mitwirkende',
+      maxZoom: 19
+    }).addTo(overviewMap);
+
+    const latlngs = routeStations.map(s => [s.lat, s.lng]);
+    const brickIcon = (num) => L.divIcon({
+      className: '',
+      html: `<div style="background:#a83f2e;color:#fbf6ec;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;border:2px solid #fbf6ec;box-shadow:0 2px 6px rgba(0,0,0,0.35);">${num}</div>`,
+      iconSize: [26,26],
+      iconAnchor: [13,13]
+    });
+
+    routeStations.forEach((s, i) => {
+      L.marker([s.lat, s.lng], { icon: brickIcon(i+1) })
+        .addTo(overviewMap)
+        .bindPopup(`<b>${i+1}. ${s.title}</b><br>${s.subtitle}`);
+    });
+
+    L.polyline(latlngs, { color:'#a83f2e', weight:3, dashArray:'6 6' }).addTo(overviewMap);
+    overviewMap.fitBounds(L.latLngBounds(latlngs), { padding:[36,36] });
+
+    const origin = routeStations[0];
+    const dest = routeStations[routeStations.length - 1];
+    const waypoints = routeStations.slice(1, -1).map(s => `${s.lat},${s.lng}`).join('|');
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&waypoints=${waypoints}&travelmode=walking`;
+    document.getElementById('fullRouteLink').href = url;
+  } else {
+    setTimeout(() => overviewMap.invalidateSize(), 50);
+  }
+}
+function closeOverview(){
+  document.getElementById('overviewOverlay').classList.remove('open');
+}
+document.getElementById('overviewOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'overviewOverlay') closeOverview();
+});
+</script>
+</body>
+</html>
