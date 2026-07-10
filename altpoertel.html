@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Altpörtel Speyer — Erzählrundgang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brick:#a83f2e;
+    --brick-dark:#7a2c20;
+    --lake:#28454d;
+    --lake-light:#3f6a72;
+    --cream:#f2e8d6;
+    --paper:#fbf6ec;
+    --ink:#271f18;
+    --gold:#c69a3c;
+    --line: rgba(39,31,24,0.14);
+    --radius: 2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--lake);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.04), transparent 45%);
+    color:var(--ink);
+    font-family:"Source Serif 4", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  .stage{
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:24px 18px;
+  }
+  .card{
+    background:var(--paper);
+    width:100%;
+    max-width:640px;
+    height:100%;
+    max-height:900px;
+    border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.06);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    position:relative;
+    min-height:0;
+  }
+  /* --- Route line (signature element) --- */
+  .route{
+    padding:16px 24px 16px;
+    background:var(--cream);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .route-topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .home-link{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    text-decoration:none;
+    color:var(--lake);
+    border:1px solid var(--lake);
+    padding:5px 10px;
+    transition:background .2s, color .2s;
+  }
+  .home-link:hover{ background:var(--lake); color:var(--paper); }
+  .phase-indicator{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    font-weight:600;
+  }
+  .route svg{ display:block; width:100%; height:34px; overflow:visible; }
+  .route-track{ stroke:rgba(39,31,24,0.18); stroke-width:2; fill:none; }
+  .route-fill{ stroke:var(--brick); stroke-width:2; fill:none; transition:stroke-dashoffset .6s cubic-bezier(.65,0,.35,1); }
+  .route-dot{ cursor:pointer; }
+  .route-dot circle.base{ fill:var(--paper); stroke:rgba(39,31,24,0.35); stroke-width:1.5; transition:all .3s ease; }
+  .route-dot.done circle.base{ fill:var(--brick); stroke:var(--brick); }
+  .route-dot.current circle.base{ fill:var(--gold); stroke:var(--gold); r:7; }
+  .route-dot.current circle.pulse{ opacity:1; }
+  .route-dot circle.pulse{ fill:none; stroke:var(--gold); stroke-width:1.5; opacity:0; transform-origin:center; animation:pulse 2.2s ease-out infinite; }
+  @keyframes pulse{ 0%{ r:7; opacity:.7;} 100%{ r:16; opacity:0;} }
+
+  .head{
+    padding:20px 28px 0;
+    flex-shrink:0;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--brick-dark);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  h1{
+    font-family:"Fraunces", serif;
+    font-weight:600;
+    font-size:clamp(28px,6vw,40px);
+    line-height:1.05;
+    margin:8px 0 2px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:500;
+    color:var(--lake);
+    font-size:16px;
+    margin:0 0 14px;
+  }
+  .body-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 28px 24px;
+  }
+  .body-scroll::-webkit-scrollbar{ width:6px; }
+  .body-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .facts{ margin:6px 0 0; padding:0; list-style:none; }
+  .facts li{
+    position:relative;
+    padding-left:20px;
+    margin-bottom:11px;
+    font-size:15.5px;
+    line-height:1.55;
+  }
+  .facts li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:6px; height:6px;
+    background:var(--brick);
+  }
+  .anekdote{
+    margin-top:22px;
+    background:linear-gradient(180deg, var(--cream), rgba(242,232,214,0.5));
+    border-left:3px solid var(--gold);
+    padding:16px 18px 18px;
+  }
+  .anekdote-label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:block;
+    margin-bottom:6px;
+  }
+  .anekdote h3{
+    font-family:"Fraunces", serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:18px;
+    margin:0 0 8px;
+    color:var(--brick-dark);
+  }
+  .anekdote p{
+    margin:0;
+    font-size:15px;
+    line-height:1.62;
+    color:var(--ink);
+  }
+  .mapbox{
+    margin-top:20px;
+    border:1px solid var(--line);
+    background:var(--cream);
+  }
+  .mapbox iframe{
+    width:100%;
+    height:180px;
+    display:block;
+    border:0;
+    filter:sepia(8%) saturate(85%);
+  }
+  .maplinks{
+    display:flex;
+    gap:1px;
+    background:var(--line);
+  }
+  .maplinks a{
+    flex:1;
+    text-align:center;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    letter-spacing:.05em;
+    text-decoration:none;
+    color:var(--ink);
+    background:var(--cream);
+    padding:11px 6px;
+    transition:background .2s,color .2s;
+  }
+  .maplinks a:hover{ background:var(--brick); color:var(--paper); }
+  .coords{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--lake-light);
+    padding:8px 10px 0;
+  }
+  .compass{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+    margin:16px 0 4px;
+  }
+  .compass div{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake);
+  }
+  .compass b{ color:var(--brick-dark); }
+
+  /* --- Nav --- */
+  .nav{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-top:1px solid var(--line);
+    background:var(--paper);
+  }
+  .nav button{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    letter-spacing:.06em;
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    padding:10px 16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:background .2s,color .2s;
+  }
+  .nav button:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  .nav button:disabled{ opacity:0.25; cursor:default; }
+  .nav .counter{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--lake-light);
+  }
+
+  .slide{
+    display:none;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    animation:fade .35s ease;
+  }
+  .slide.active{ display:flex; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  @media (max-width:480px){
+    .stage{ padding:0; }
+    .card{ max-height:none; border-radius:0; }
+    .head{ padding:16px 20px 0; }
+    .body-scroll{ padding:6px 20px 20px; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+
+    <div class="route">
+      <div class="route-topbar">
+        <a class="home-link" href="index.html">← Alle Rundgänge</a>
+        <span class="phase-indicator" id="phaseIndicator"></span>
+      </div>
+      <svg viewBox="0 0 600 34" id="routeSvg">
+        <path class="route-track" d="M20,17 L580,17"/>
+        <path class="route-fill" id="routeFill" d="M20,17 L580,17"/>
+        <g id="routeDots"></g>
+      </svg>
+    </div>
+
+    <div id="slides" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+
+    <div class="nav">
+      <button id="prevBtn" onclick="go(-1)">‹ Zurück</button>
+      <span class="counter" id="counter"></span>
+      <button id="nextBtn" onclick="go(1)">Weiter ›</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const stations = [
+{
+  eyebrow: "Einführung",
+  meta: "vor dem Turm",
+  title: "Altpörtel",
+  subtitle: "Das westliche Stadttor von Speyer",
+  lat: 49.3175593, lng: 8.4323183,
+  facts: [
+    "55 Meter hoch – eines der höchsten und bedeutendsten Stadttore Deutschlands.",
+    "Eines von einst 68 Mauer- und Tortürmen, die Speyer als Freie Reichsstadt umgaben – heute eines der wenigen erhaltenen.",
+    "Westliches Stadttor, Abschluss der \"Via Triumphalis\" zum Kaiserdom.",
+    "Seit 2020 für Einzelbesucher geschlossen (zunächst Pandemie, dann Brandschutzauflagen) – Wiedereröffnung voraussichtlich August 2026.",
+    "Dieser Rundgang begleitet den klassischen Ablauf einer Führung: erst von außen, dann im Turm, zum Schluss auf der Aussichtsgalerie."
+  ],
+  compass: [["1197","Erste Erwähnung"], ["1230–50","Turmbau"], ["1512–14","Galerie"], ["1689","Rettung durch Duras"], ["1959","Bürgerprotest"], ["2026","Wiedereröffnung"]],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Vor dem Turm",
+  meta: "01 · ca. 8 Min",
+  title: "Der Name und die Bauphasen",
+  subtitle: "Ein Mythos und drei Jahrhunderte Bau",
+  facts: [
+    "Die älteste erhaltene Erwähnung stammt von 1197: In einer Urkunde des Domscholasters Andreas heißt der Turm \"vetus porta\" – lateinisch \"altes Tor\".",
+    "Gegenstück war das längst verschwundene \"Neupörtel\" (nova porta) am anderen Ende der Stadt.",
+    "Die im 18. Jahrhundert populäre Ableitung von \"alta porta\" (hohes Tor) ist durch keine Quelle belegt – hält sich aber bis heute hartnäckig.",
+    "Unterer, wehrhafter Turmteil: 1230–1250.",
+    "Oberstes Geschoss mit spätgotischer Galerie und Maßwerkbrüstung: erst 1512–1514, rund 280 Jahre später.",
+    "Das heutige steile Dach kam sogar erst 1708 hinzu – schon in der Barockzeit."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Ein Turm, der gotisch beginnt und barock endet",
+  anekdoteText:"Im lateinischen Original heißt es 1197: \"…iuxta veterem portam habuit\" – \"…besaß neben dem alten Tor\". Vetus porta, altes Tor, nicht hohes Tor: Der Name war von Anfang an wörtlich gemeint. Und der Turm selbst erzählt seine Geschichte in sichtbaren Schichten – wer genau hinschaut, erkennt am Übergang zwischen dem schlichten unteren Wehrturm und der reich verzierten Galerie fast 300 Jahre Baugeschichte auf einen Blick."
+},
+{
+  eyebrow: "Vor dem Turm",
+  meta: "02 · ca. 8 Min",
+  title: "Zifferblätter und Werkschuh",
+  subtitle: "Zeit und Maß der Reichsstadt",
+  facts: [
+    "Zwei Zifferblätter je Seite: das große zeigt die Stunden, das kleine die Viertelstunden – früher war die volle Stunde schlicht die wichtigere Angabe.",
+    "Das äußere, von Weitem sichtbare Stundenzifferblatt ist bewusst größer, damit Reisende die Uhrzeit schon von Ferne erkennen konnten.",
+    "Bereits 1395 ist von einer Turmuhr die Rede (\"Die Uhr uffm Altburg Thor gemacht\") – deutlich älter als die heutige.",
+    "Die noch erhaltene Uhr baute 1761 der renommierte Neustadter Uhrmacher Jakob Moellinger.",
+    "Der Speyerer Werkschuh: eine eiserne Maßklammer in der Durchfahrt, 28,889 cm lang, in 12 Zoll unterteilt – bis ins frühe 19. Jh. verbindliches Handelsmaß der Stadt."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Mit dem eigenen Schuh die ganze Stadt vermessen",
+  anekdoteText:"1772 und 1773 nahm der Speyerer Senator Johannes Becker den Werkschuh wörtlich: Mit seiner Hilfe ließ er die gesamte Stadt samt ihren vier Vorstädten vermessen. Ein einziges kleines Eisenstück als Grundlage der städtischen Kartografie – lange bevor es einen einheitlichen Meter gab, hatte jede Stadt ihr eigenes Maß, ihr eigenes Geld, ihre eigene Ordnung. Wer vor Ort steht: ein Blick lohnt sich auch auf die Schreibweise der Vier auf dem Zifferblatt – \"IIII\" statt \"IV\" ist bei historischen Turmuhren keine Seltenheit und immer für einen kurzen Exkurs gut."
+},
+{
+  eyebrow: "Vor dem Turm",
+  meta: "03 · ca. 6 Min",
+  title: "Verlies und Strafgeschichte",
+  subtitle: "Wenn Steine reden könnten",
+  facts: [
+    "Im südlichen Torbogen liegt das ehemalige Verlies – ein karger, fensterloser Raum.",
+    "Ein Zustandsbericht von 1726 zählt zehn Gefängniszellen im Turm auf, darunter das \"finstere Loch\" und das \"Betzen Loch\".",
+    "1628 wurden hier Folterinstrumente, Richtschwerter und ein Brenneisen für die Stirn verurteilter \"Maleficanten\" verwahrt.",
+    "Bis 1834 diente das Altpörtel als Gefängnis – zuletzt saßen hier bis zu 60 Personen gleichzeitig ein."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Die Steinschlepperinnen und das verschwundene Schwert",
+  anekdoteText:"Schon 1314 kannte Speyer eine eigene Frauenstrafe: Wer sich bestimmter Vergehen schuldig gemacht hatte, musste einen Stein vom Domnapf bis zum Altpörtel schleppen – quer durch die ganze Stadt, öffentlich zur Schau gestellt. Das eigentliche Scharfrichterschwert der Stadt lag einst in einer Kiste im Turm, verschwand während der Französischen Revolution 1792 und tauchte erst nach über 225 Jahren wieder auf. Heute ist es im Historischen Museum der Pfalz zu sehen."
+},
+{
+  eyebrow: "Vor dem Turm",
+  meta: "04 · ca. 6 Min",
+  title: "Zweimal gerettet",
+  subtitle: "1689 und 1959",
+  facts: [
+    "1689, im Pfälzischen Erbfolgekrieg, zerstörte der französische Marschall Duras Stadt und Dom fast vollständig – die Sprenglöcher für das Altpörtel waren bereits gebohrt.",
+    "Der Prior des benachbarten Karmeliterklosters, in dem Duras einquartiert war, bat um Gnade – ein Einsturz hätte auch die morschen Klostermauern beschädigt.",
+    "Bei einer Renovierung 1956/60, über 250 Jahre später, fand man die pulvergefüllten Sprengkammern der Franzosen noch original im Mauerwerk.",
+    "Schon 1821 und 1839 forderten Speyerer Bürger den Abriss des Turms – er habe \"weder architektonischen noch besonderen Wert\".",
+    "1959 drohte der Abriss erneut, diesmal von der eigenen Stadt geplant – ein Bürgerprotest verhinderte ihn."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"„Steht auf Kinder, der Turm soll stehen bleiben!“",
+  anekdoteText:"Als die Ingenieure mit brennenden Lunten auf das Signal warteten, warf sich der ganze Karmeliterkonvent Marschall Duras zu Füßen. Der Marschall schaute eine Weile schweigend vor sich hin – und rief schließlich: \"Steht auf Kinder, der Turm soll stehen bleiben!\" Das Altpörtel blieb verschont, während die restliche Stadt in Schutt und Asche lag. Zweimal gerettet, einmal vor einem fremden Heer, einmal vor der eigenen Verwaltung – ein Turm mit bemerkenswertem Beharrungsvermögen."
+},
+{
+  eyebrow: "Im Turm",
+  meta: "05 · ca. 6 Min",
+  title: "Das Stadtmodell",
+  subtitle: "68 Türme, eine Stadt",
+  facts: [
+    "Ein Modell der mittelalterlichen Stadt zeigt, wie dicht Speyer einst befestigt war – 68 Mauer- und Tortürme umgaben die Stadt komplett.",
+    "Heute ist nur noch eine Handvoll dieser Türme erhalten; das Altpörtel ist mit Abstand der bekannteste und größte davon.",
+    "Am Modell lässt sich gut zeigen, wie das Altpörtel den westlichen Abschluss der Stadt bildete, während der Dom im Osten das andere Ende der Stadtachse markierte."
+  ],
+  anekdoteLabel: null, anekdoteTitle:null, anekdoteText:null
+},
+{
+  eyebrow: "Im Turm",
+  meta: "06 · ca. 8 Min",
+  title: "Glocken und Reichskammergericht",
+  subtitle: "Klang und Recht der Reichsstadt",
+  facts: [
+    "Im Mittelalter läutete zwei Stunden vor Mitternacht das \"Woiglöckel\" im Turm – das Zeichen für die Wirte, den Weinausschank zu beenden.",
+    "Seit dem 18. Jahrhundert besitzt das Altpörtel zudem eine Sturm- und Betglocke, die bis 1914 dreimal täglich geläutet wurde.",
+    "Im 5. Stock zeigt eine Dauerausstellung seit 2014 die Geschichte des Reichskammergerichts.",
+    "Speyer war von 1527 bis 1689 Sitz dieses höchsten Gerichts des Heiligen Römischen Reiches – über 150 Jahre lang ein juristisches Zentrum von europäischem Rang."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Dieselbe Katastrophe, zwei Enden",
+  anekdoteText:"Es ist derselbe Moment der Stadtgeschichte, der zwei ganz unterschiedliche Geschichten beendet: Die Zerstörung von 1689, die das Altpörtel nur knapp überstand, setzte auch der Ära des Reichskammergerichts in Speyer ein jähes Ende – das Gericht zog danach weiter nach Wetzlar. Ein Turm und eine Institution, deren Schicksal an genau demselben Kriegsjahr hängt."
+},
+{
+  eyebrow: "Auf der Galerie",
+  meta: "07 · Abschluss · ca. 6 Min",
+  title: "Der Rundblick",
+  subtitle: "Wo Tor und Dom sich die Hand reichen",
+  facts: [
+    "Die umlaufende Galerie liegt rund 30 Meter über der Straße und bietet einen weiten Blick über die Speyerer Altstadt.",
+    "Richtung Osten sind die Domtürme zu sehen, dazwischen schnurgerade die Maximilianstraße – die einstige Via Triumphalis.",
+    "Die Hausnummern der Maximilianstraße folgen einem alten preußischen System: eine Straßenseite komplett hoch, dann auf der anderen zurück.",
+    "Das Bischofshaus am Dom trägt die Nummer 1, das gegenüberliegende Stadthaus die Nummer 100 – das Altpörtel liegt mit der Nummer 54 fast exakt in der rechnerischen Mitte."
+  ],
+  anekdoteLabel:"Anekdote", anekdoteTitle:"Ein Turm, der zweimal überlebt hat",
+  anekdoteText:"Von hier oben lässt sich der ganze Rundgang noch einmal zusammenfassen: ein Turm, der zweimal nur knapp dem Abriss entgangen ist – einmal 1689 vor den Kanonen eines fremden Heeres, einmal 1959 vor der eigenen Stadtverwaltung. Beide Male waren es einzelne Menschen, die sich für seinen Erhalt eingesetzt haben. Das darf man sich bei diesem Blick über Speyer ruhig in Erinnerung rufen."
+}
+];
+
+let current = 0;
+const slidesEl = document.getElementById('slides');
+const routeDots = document.getElementById('routeDots');
+const routeFill = document.getElementById('routeFill');
+const totalLen = 560;
+
+stations.forEach((s, i) => {
+  const el = document.createElement('div');
+  el.className = 'slide' + (i===0 ? ' active' : '');
+  el.id = 'slide-' + i;
+  el.innerHTML = `
+    <div class="head">
+      <div class="eyebrow"><span>${s.eyebrow}</span><span>${s.meta}</span></div>
+      <h1>${s.title}</h1>
+      <div class="subtitle">${s.subtitle}</div>
+    </div>
+    <div class="body-scroll">
+      <ul class="facts">${s.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${s.compass ? `<div class="compass">${s.compass.map(c=>`<div><b>${c[0]}</b> ${c[1]}</div>`).join('')}</div>` : ''}
+      ${s.lat ? `
+      <div class="mapbox">
+        <div class="coords">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+        <iframe loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${s.lng-0.004}%2C${s.lat-0.0025}%2C${s.lng+0.004}%2C${s.lat+0.0025}&layer=mapnik&marker=${s.lat}%2C${s.lng}"></iframe>
+        <div class="maplinks">
+          <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener">Google Maps ↗</a>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}&travelmode=walking" target="_blank" rel="noopener">Navigation starten ↗</a>
+        </div>
+      </div>` : ''}
+      ${s.anekdoteText ? `
+      <div class="anekdote">
+        <span class="anekdote-label">${s.anekdoteLabel}</span>
+        <h3>${s.anekdoteTitle}</h3>
+        <p>${s.anekdoteText}</p>
+      </div>` : ''}
+    </div>
+  `;
+  slidesEl.appendChild(el);
+
+  const x = 20 + (i * (totalLen / (stations.length - 1)));
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('class','route-dot');
+  g.setAttribute('data-i', i);
+  g.innerHTML = `<circle class="pulse" cx="${x}" cy="17" r="7"></circle><circle class="base" cx="${x}" cy="17" r="5"></circle>`;
+  g.addEventListener('click', () => { current = i; render(); });
+  routeDots.appendChild(g);
+});
+
+function render(){
+  document.querySelectorAll('.slide').forEach((el,i)=> el.classList.toggle('active', i===current));
+  document.querySelectorAll('.route-dot').forEach((el,i)=>{
+    el.classList.toggle('done', i < current);
+    el.classList.toggle('current', i === current);
+  });
+  const x = 20 + (current * (totalLen / (stations.length - 1)));
+  routeFill.setAttribute('d', `M20,17 L${x},17`);
+  document.getElementById('counter').textContent = (current+1) + ' / ' + stations.length;
+  document.getElementById('phaseIndicator').textContent = stations[current].eyebrow;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === stations.length - 1;
+  document.querySelector('.body-scroll:not([style*="display: none"])');
+  const active = document.querySelector('.slide.active .body-scroll');
+  if(active) active.scrollTop = 0;
+}
+function go(dir){
+  const next = current + dir;
+  if(next < 0 || next > stations.length - 1) return;
+  current = next;
+  render();
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight') go(1);
+  if(e.key === 'ArrowLeft') go(-1);
+});
+let touchX = null;
+document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+document.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  touchX = null;
+});
+render();
+</script>
+</body>
+</html>
